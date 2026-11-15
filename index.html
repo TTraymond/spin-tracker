@@ -4478,7 +4478,7 @@
                 <div class="text-xs font-bold text-slate-300 mb-1">Dernières décisions</div><div class="max-h-56 overflow-auto custom-scrollbar border border-white/10 rounded-lg">${recent.map(h => `<div class="flex flex-wrap gap-3 px-3 py-1 text-xs border-b border-white/5"><span class="${h.ok ? 'text-emerald-400' : 'text-rose-400'}">${h.ok ? '✓' : '✗'}</span><span class="w-12 font-bold text-slate-200">${h.hand}</span><span class="text-slate-400 flex-1 min-w-[12rem]">${esc(h.title)}</span><span>toi : <b>${h.choice}</b></span><span>reco : <b>${h.best}</b></span>${h.adapt ? `<span class="text-amber-300">adaptation ${h.followed ? 'appliquée' : 'manquée'}</span>` : ''}${h.ok ? '' : `<span class="text-rose-300">−${String(h.loss.toFixed(2)).replace('.', ',')} BB</span>`}</div>`).join('')}</div>` : '<p class="text-xs text-slate-500">Joue des spots en mode Coach : tes décisions s\'enregistrent ici, par scénario, avec la part des adaptations que tu appliques vraiment.</p>'}</div>`;
             box.innerHTML = scen + sweep + hist;
         }
-        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
+        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
         async function bkRestore(x, merge) {
             for (const k of Object.keys(x || {})) { let v = x[k]; try { const cur = await localforage.getItem(k);
                 if (merge && Array.isArray(cur) && Array.isArray(v)) v = k === 'sim_scen' ? [...cur.filter(c => !v.some(n => n.name === c.name)), ...v] : [...cur, ...v.filter(n => !cur.some(c => c.ts === n.ts && c.hand === n.hand))].sort((a, b) => a.ts - b.ts);
@@ -7458,6 +7458,220 @@
         // démarrage : Claude quand l'app est ouverte dans claude.ai, sinon IA locale à la demande
         (async () => { if (IN_ARTIFACT) { try { const s = await window.claude.use('sample'); if (s) AIX.claude = s; } catch (e) { } AIX.claudeTried = true; aiStatusAll(); }
             if (!IN_ARTIFACT && aiLocalOK() && aiCfg.auto) setTimeout(() => aiLoadLocal(aiCfg.key || '3b'), 3000); })();
+
+
+        // --- 66. MODE TABLE (tablette) : sièges physiques, bouton déplaçable, stacks rapides, situation, grille 13×13 contre un adversaire précis ---
+        // S'appuie sur le moteur du Simulateur (simDecisions, sbLine) : mêmes fréquences, même best response, même incertitude.
+        let MT = { fmt: '3', btn: 0, st: [10, 10, 10], tg: ['me', 'f', 'f'], sit: null, rec: [], fav: [], man: {} };
+        let mtCell = null, mtFs = false, mtLast = null, mtPk = null;
+        (async () => { try { const d = await localforage.getItem('mt_cfg'); if (d && d.st) MT = { ...MT, ...d }; } catch (e) { } })();
+        const mtSave = () => { try { localforage.setItem('mt_cfg', MT); } catch (e) { } };
+        const MT_POS = ['BTN', 'SB', 'BB'], MT_STK = [3, 5, 7, 10, 13, 15, 20];
+        const mtN = () => MT.fmt === 'HU' ? 2 : 3;
+        // sièges physiques : 0 = moi (en bas), 1 = à gauche, 2 = à droite ; le jeu tourne 0 → 1 → 2 (le bouton passe à gauche)
+        function mtPosOf(k) { return MT.fmt === 'HU' ? (k === MT.btn % 2 ? 'SB' : 'BB') : MT_POS[(k - MT.btn + 3) % 3]; }
+        const mtQ = v => Math.max(1, Math.min(60, Math.round(2 * (+v || 0)) / 2));
+        const mtNorm = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        const mtLab = (tg, hero) => !tg || tg === 'f' ? 'Field moyen' : tg.startsWith('m:') ? '✍️ ' + tg.slice(2) : tg.startsWith('a:') ? '🏷️ ' + tg.slice(2) : simLabel(tg, hero);
+        const mtShort = (s, n = 14) => { s = String(s); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+        // stats saisies à la main (adversaire absent de la base) : % de shove en premier, % de call face à un shove, nombre de mains
+        const _sf66 = simFreq;
+        simFreq = function (hero, tg, fmt, pos, ctx, act, S) {
+            if (!tg || !String(tg).startsWith('m:')) return _sf66.apply(this, arguments);
+            const b = _sf66(hero, 'f', fmt, pos, ctx, act, S), m = MT.man[tg.slice(2)] || {}, v = ctx === 'open' && act === 'shove' ? m.sh : ctx === 'shove' && act === 'call' ? m.ca : null;
+            if (v == null || v === '' || !isFinite(+v)) return { ...b, src: b.src + ' (non saisi)' };
+            const n = Math.max(1, +m.n || 20), k0 = 12, p = Math.max(0, Math.min(100, (+v * n + k0 * b.p0) / (n + k0))), sd = Math.sqrt(Math.max(p * (100 - p), 25) / (n + k0));
+            return { ...b, p, n, raw: +v, lo: Math.max(0, p - sd), hi: Math.min(100, p + sd), sd };
+        };
+
+        // calcul : on traduit la table physique en positions et on appelle le moteur du Simulateur
+        function mtCompute(hero) {
+            const n = mtN(), hu = MT.fmt === 'HU', me = mtPosOf(0), seat = { BTN: 'f', SB: 'f', BB: 'f' }, st = { BTN: 10, SB: 10, BB: 10 };
+            for (let k = 0; k < n; k++) { const p = mtPosOf(k); st[p] = mtQ(MT.st[k]); if (k) seat[p] = MT.tg[k] || 'f'; }
+            if (hu) st.BTN = st.SB;
+            const save = sim; let D = [], L = [];
+            sim = { ...save, fmt: hu ? 'HU' : '3', hero: me, mode: 'adv', st, seat, S: Math.min(st.SB, st.BB, hu ? 99 : st.BTN) };
+            try {
+                D = simDecisions(hero);
+                const lab = p => esc(simLabel(seat[p], hero));
+                if (me === 'BB') {
+                    if (hu) { const E = Math.min(st.SB, st.BB), w = `${lab('SB')} (au SB)`; L = [{ k: 'limp', v: 'SB', l: sbLine(hero, 'limp', 'SB', 'HU', E, 0, seat.SB, w) }, { k: 'minr', v: 'SB', l: sbLine(hero, 'minr', 'SB', 'HU', E, 0, seat.SB, w) }]; }
+                    else { const eS = Math.min(st.BB, st.SB), eB = Math.min(st.BB, st.BTN);
+                        L = [{ k: 'limp', v: 'SB', l: sbLine(hero, 'limp', 'SB', '3M', eS, 0, seat.SB, `La SB (${lab('SB')})`) }, { k: 'limp', v: 'BTN', l: sbLine(hero, 'limp', 'BTN', '3M', eB, .5, seat.BTN, `Le BTN (${lab('BTN')})`) },
+                            { k: 'minr', v: 'SB', l: sbLine(hero, 'minr', 'SB', '3M', eS, 0, seat.SB, `La SB (${lab('SB')})`) }, { k: 'minr', v: 'BTN', l: sbLine(hero, 'minr', 'BTN', '3M', eB, .5, seat.BTN, `Le BTN (${lab('BTN')})`) }]; }
+                }
+            } finally { sim = save; }
+            const nm = p => mtShort(simLabel(seat[p], hero), 12), S = [];
+            D.filter(d => d.me === me).forEach(d => { if (d.act === 'shove') S.push({ id: 'open', lab: d.kind === 'btnOpen' ? 'J’ouvre : shove ?' : hu ? 'J’ouvre : shove ?' : 'BTN fold → je shove ?', d });
+                else { const o = d.freqs[0].pos; S.push({ id: 'call:' + o, lab: `${o} ${nm(o)} shove → je paie ?`, d }); } });
+            L.forEach(x => S.push({ id: x.k + ':' + x.v, lab: `${x.v} ${nm(x.v)} ${x.k === 'limp' ? 'limpe' : 'min-raise'} → ?`, l: x.l }));
+            return { S, me, st, seat };
+        }
+
+        // --- affichage ---
+        const MT_COL = { shove: '#dc2626', call: '#059669', fold: '#1e293b', check: '#64748b' };
+        function mtDots(n) { const k = n < 5 ? 1 : n < 15 ? 2 : n < 40 ? 3 : 4; return `<span class="tracking-tight ${k <= 2 ? 'text-amber-300' : 'text-emerald-300'}">${'●'.repeat(k)}${'○'.repeat(4 - k)}</span> <span class="text-slate-400">${['', 'très faible', 'faible', 'correcte', 'bonne'][k]}</span>`; }
+        function mtSeatHtml(k, hero, x, y) {
+            const pos = mtPosOf(k), me = k === 0, tg = MT.tg[k] || 'f', isB = k === MT.btn % mtN(), P = me ? null : (() => { try { return buildProfiles()[tg.startsWith('p:') ? tg.slice(2) : '']; } catch (e) { return null; } })();
+            let sub = ''; if (!me) { if (tg.startsWith('p:')) { const t = _mtIx && _mtIx.tg[tg.slice(2)]; sub = `${P ? P.n : 0} mains${t && t.length && P && P.n >= 30 ? ' · ' + esc([...new Set(t)].slice(0, 2).join(' / ')) : ''}`; } else if (tg.startsWith('m:')) { const m = MT.man[tg.slice(2)] || {}; sub = `saisie : shove ${m.sh ?? '—'} % · call ${m.ca ?? '—'} %`; } else sub = tg === 'f' ? 'touche pour choisir' : 'profil'; }
+            const pc = pos === 'BTN' ? 'bg-amber-500 text-slate-900' : pos === 'SB' ? 'bg-sky-600 text-white' : 'bg-violet-600 text-white';
+            return `<div class="absolute -translate-x-1/2 -translate-y-1/2 w-[46%] max-w-[230px] rounded-2xl ${me ? 'bg-indigo-950/95 border-indigo-400' : 'bg-slate-900/95 border-white/15'} border-2 p-2 shadow-xl" style="left:${x}%;top:${y}%">
+                <div class="flex items-center justify-between gap-1 mb-1"><span class="text-xs font-black px-2 py-1 rounded-lg ${pc}">${pos}</span>
+                    <button data-mt="btn" data-k="${k}" aria-label="Mettre le bouton ici" class="w-10 h-10 rounded-full text-sm font-black border-2 ${isB ? 'bg-white text-slate-900 border-amber-400 shadow' : 'bg-transparent text-slate-500 border-slate-600 border-dashed'}">D</button></div>
+                ${me ? `<div class="text-sm font-bold text-indigo-200 truncate px-1">Moi</div>` : `<button data-mt="pick" data-k="${k}" class="w-full text-left rounded-xl bg-slate-800 active:bg-slate-700 px-2 py-2 min-h-[44px]"><div class="text-sm font-bold text-slate-100 truncate">${esc(mtLab(tg, hero))} <span class="text-slate-400">▾</span></div><div class="text-[11px] text-slate-400 truncate">${sub}</div></button>`}
+                <div class="flex items-center justify-between gap-1 mt-1"><button data-mt="st" data-k="${k}" data-d="-0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">−</button><span class="text-base font-black text-white">${String(mtQ(MT.st[k])).replace('.', ',')}<span class="text-xs text-slate-400"> BB</span></span><button data-mt="st" data-k="${k}" data-d="0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">+</button></div></div>`;
+        }
+        function mtGridHtml(s) {
+            let h = '<div class="grid gap-[2px] select-none mx-auto" style="grid-template-columns:repeat(13,minmax(0,1fr));max-width:min(100%,66vh)">';
+            for (let i = 0; i < 169; i++) { let bg, fg = '#fff', op = 1;
+                if (s.d) { const e = s.d.edge[i], A = s.d.act === 'shove' ? 'shove' : 'call'; bg = e > 0 ? MT_COL[A] : MT_COL.fold; if (Math.abs(e) < .05) { bg = '#b45309'; } if (e <= 0 && Math.abs(e) >= .05) fg = '#94a3b8'; }
+                else { const a = s.l.acts[s.l.best[i]]; bg = MT_COL[a]; if (a === 'fold') fg = '#94a3b8'; }
+                h += `<button data-mt="cell" data-i="${i}" class="aspect-square rounded-[3px] font-bold leading-none ${mtCell === i ? 'ring-2 ring-white z-10' : ''}" style="background:${bg};color:${fg};opacity:${op};font-size:clamp(7px,1.25vw,12px)">${cname(i)}</button>`; }
+            return h + '</div>';
+        }
+        function mtCellInfo(s) {
+            if (mtCell == null) return '<span class="text-slate-500">Touche une main de la grille pour voir son EV.</span>';
+            const i = mtCell, f2 = v => simSg(v, 2) + ' BB';
+            if (s.d) { const A = s.d.act === 'shove' ? 'shove' : 'call', e = s.d.edge[i], dec = Math.abs(e) < .05 ? 'limite' : e > 0 ? A : 'fold';
+                const csv = /CSV/.test(s.d.baseLab), rf = csv ? (s.d.base[i] > 0 ? A : 'fold') : f2(s.d.base[i]);
+                return `<b class="text-white text-base">${cname(i)}</b> → <b class="${dec === 'fold' ? 'text-slate-300' : dec === 'limite' ? 'text-amber-300' : 'text-emerald-300'}">${dec}</b> · ${A} ${f2(e)} vs fold <span class="text-slate-400">(référence ${s.d.baseLab} : ${rf})</span>`; }
+            const L = s.l; return `<b class="text-white text-base">${cname(i)}</b> → <b class="text-emerald-300">${L.acts[L.best[i]]}</b> · ${L.acts.map((a, k) => `${a} ${f2(L.ev[k][i])}`).join(' · ')}`;
+        }
+        function mtSummary(s) {
+            if (s.d) { const d = s.d, A = d.act === 'shove' ? 'shove' : 'call', sh = simShare(d.edge), bs = simShare(d.base); let e = null; try { e = simEV(d); } catch (x) { }
+                const fr = d.freqs.map(x => `<div>${x.who} ${x.verb} <b class="text-white">${x.f.p.toFixed(0)} %</b> <span class="text-slate-400">(${x.f.fieldP != null ? 'field ' + x.f.fieldP.toFixed(0) + ' %' : x.f.src}) ${x.f.n ? ` · ${x.f.n} obs. · fourchette ${x.f.lo.toFixed(0)}–${x.f.hi.toFixed(0)} %</span> · fiabilité ${mtDots(x.f.n)}` : ' · moyenne de la population</span>'}</div>`).join('');
+                return `<div class="text-base text-slate-100"><b class="${A === 'shove' ? 'text-rose-300' : 'text-emerald-300'}">${A} ${sh.toFixed(0)} %</b> des mains <span class="text-slate-400">· référence ${d.baseLab} ${bs.toFixed(0)} %</span></div>
+                    <div class="text-xs text-slate-300 space-y-1 mt-1">${fr}</div>
+                    ${e ? `<div class="text-xs mt-1 text-slate-300">Gain de l’adaptation : <b class="${e.gain >= .005 ? 'text-emerald-300' : 'text-slate-200'}">${simSg(e.gain, Math.abs(e.gain) < .1 ? 3 : 2)} BB</b> par spot <span class="text-slate-400">(fourchette ${simSg(e.gLo)} → ${simSg(e.gHi)})</span>${e.gLo < -0.02 ? ' <span class="text-amber-300">⚠ échantillon faible : adapte-toi progressivement</span>' : ''}</div>` : ''}
+                    <details class="mt-1"><summary class="text-xs text-indigo-300 py-2 cursor-pointer">Mains à ajouter / retirer par rapport à la référence</summary>${simDiff(d)}</details>`; }
+            const L = s.l; return `<div class="text-sm text-slate-200">${L.why}</div><div class="text-sm text-slate-100 mt-1">Ta meilleure ligne : ${L.res}</div><div class="text-xs mt-1 text-slate-300">Gain vs référence field : <b>${simSg(L.gain, Math.abs(L.gain) < .1 ? 3 : 2)} BB</b> par spot${L.nObs ? ` · ${L.nObs} obs. · fiabilité ${mtDots(L.nObs)}` : ' · adversaire = moyenne du field'}</div>
+                <div class="text-[11px] text-slate-400 mt-1">${['fold', 'check', 'call', 'shove'].filter(a => L.acts.includes(a)).map(a => `<span class="mr-3"><span style="display:inline-block;width:10px;height:10px;background:${MT_COL[a]}"></span> ${a}</span>`).join('')}</div>`;
+        }
+        function renderMt() {
+            const el = document.getElementById('mtBox'); if (!el) return; const hero = playerSelect.value;
+            if (!hero) { el.innerHTML = '<div class="pc text-slate-400">Importe tes HH et choisis ton pseudo.</div>'; return; }
+            try { mtIndex(hero); } catch (e) { }
+            let R; try { R = mtCompute(hero); } catch (e) { console.error('mt', e); el.innerHTML = `<div class="pc text-rose-300">Erreur de calcul : ${esc(e.message)}</div>`; return; }
+            let s = R.S.find(x => x.id === MT.sit) || R.S.find(x => x.id.startsWith('call:')) || R.S[0]; if (s) MT.sit = s.id; mtLast = { R, s };
+            const hu = MT.fmt === 'HU', seg = (on, l, a, v) => `<button data-mt="${a}" data-v="${v}" class="px-4 min-h-[44px] rounded-xl text-sm font-bold ${on ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`;
+            const pts = hu ? [[0, 50, 84], [1, 50, 17]] : [[0, 50, 84], [1, 25, 20], [2, 75, 20]];
+            const depW = typeof dep !== 'undefined' && dep.mode !== 'all' ? `<div class="text-xs text-amber-300 mb-2">⚠ Filtre de profondeur global actif (${depLabel()}) : les fréquences n’utilisent que ces mains.</div>` : '';
+            el.innerHTML = `<div class="${mtFs ? 'fixed inset-0 z-[70] overflow-auto bg-slate-950 p-3' : 'rounded-2xl bg-slate-950/40 border border-white/10 p-3'}">
+                <div class="flex flex-wrap items-center gap-2 mb-3">${seg(!hu, '3 joueurs', 'fmt', '3')}${seg(hu, '2 joueurs', 'fmt', 'HU')}<span class="text-xs text-slate-400 ml-1">Moi : <b class="text-indigo-200">${R.me}</b></span>
+                    <button data-mt="fs" class="ml-auto px-4 min-h-[44px] rounded-xl text-sm font-bold bg-slate-800 text-slate-200">${mtFs ? '✕ Quitter le plein écran' : '⛶ Plein écran'}</button></div>${depW}
+                <div class="grid gap-4 lg:grid-cols-2 items-start">
+                  <div>
+                    <div class="relative w-full rounded-[44%] border-[6px] border-amber-900/70 bg-gradient-to-b from-emerald-800 to-emerald-950" style="aspect-ratio:16/11;max-height:50vh;min-height:330px">
+                      <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-emerald-100/70 text-xs">Pot 1,5 BB<br>${hu ? 'heads-up' : '3-way'}</div>
+                      ${pts.map(([k, x, y]) => mtSeatHtml(k, hero, x, y)).join('')}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-3"><button data-mt="next" class="px-5 min-h-[48px] rounded-xl text-base font-black bg-amber-500 text-slate-900 active:bg-amber-400">D ➜ Bouton suivant</button><span class="text-xs text-slate-400">ou touche le « D » d’un siège</span></div>
+                    <div class="mt-3"><div class="text-[11px] uppercase font-bold text-slate-400 mb-1">Tous les stacks à</div><div class="flex flex-wrap gap-2">${MT_STK.map(v => `<button data-mt="all" data-v="${v}" class="w-14 min-h-[44px] rounded-xl text-base font-bold ${MT.st.slice(0, mtN()).every(x => mtQ(x) === v) ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'}">${v}</button>`).join('')}</div></div>
+                  </div>
+                  <div>
+                    <div class="flex flex-wrap gap-2 mb-3">${R.S.map((x, i) => `<button data-mt="sit" data-i="${i}" class="px-3 min-h-[44px] rounded-xl text-sm font-bold ${x === s ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-200'}">${esc(x.lab)}</button>`).join('')}</div>
+                    ${s ? `<div class="text-xs text-slate-400 mb-1">${s.d ? s.d.title + ' · ' + s.d.Etxt : s.l.title + ' · ' + simF1(s.l.E) + ' BB eff.'}</div>${mtGridHtml(s)}
+                      <div id="mtInfo" class="min-h-[48px] rounded-xl bg-slate-900 border border-white/10 px-3 py-2 mt-2 text-sm text-slate-200">${mtCellInfo(s)}</div>
+                      <div class="mt-2">${mtSummary(s)}</div>` : '<p class="text-slate-400 text-sm">Aucune situation calculable ici.</p>'}
+                  </div>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-3">Même moteur que le Simulateur : fréquences de tes HH à la profondeur de chaque confrontation, ramenées vers le field quand il y a peu de mains. Sa range est modélisée par ses x % meilleures mains : l’app mesure à quel point il joue large, pas quelles mains il choisit. Outil d’étude entre les sessions.</p></div>`;
+        }
+
+        // --- choix d'un adversaire (panneau tactile) ---
+        let _mtIx = null;
+        function mtIndex(hero) {
+            const k = hero + '|' + dKey() + '|' + allParsedHands.length; if (_mtIx && _mtIx.k === k) return _mtIx;
+            const { P, tg } = plNames(hero), L = Object.keys(P).filter(p => p !== hero && P[p].n >= 3).map(p => ({ p, n: P[p].n, k: mtNorm(p) })).sort((a, b) => b.n - a.n);
+            return _mtIx = { k, L, tg };
+        }
+        function mtSearch(q) {
+            const I = _mtIx; if (!I) return []; q = mtNorm(q.trim()); if (!q) return I.L.slice(0, 30);
+            const a = [], b = []; for (const x of I.L) { const i = x.k.indexOf(q); if (i === 0) a.push(x); else if (i > 0 && b.length < 40) b.push(x); } return a.slice(0, 40).concat(b).slice(0, 40);
+        }
+        function mtRowHtml(x) { const t = _mtIx.tg[x.p], fav = MT.fav.includes('p:' + x.p);
+            return `<div class="flex items-stretch gap-2"><button data-mt="set" data-tg="${esc('p:' + x.p)}" class="flex-1 text-left rounded-xl bg-slate-800 active:bg-slate-700 px-3 py-2 min-h-[52px]"><div class="text-base font-bold text-slate-100 truncate">${esc(x.p)}</div><div class="text-xs text-slate-400">${x.n} mains${t && t.length && x.n >= 30 ? ' · ' + esc([...new Set(t)].slice(0, 3).join(' / ')) : ''}</div></button>
+                <button data-mt="fav" data-tg="${esc('p:' + x.p)}" aria-label="Favori" class="w-12 rounded-xl text-xl ${fav ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-500'}">${fav ? '★' : '☆'}</button></div>`; }
+        function mtChip(tg, hero, cls) { return `<button data-mt="set" data-tg="${esc(tg)}" class="px-3 min-h-[44px] rounded-xl text-sm font-bold ${cls || 'bg-slate-800 text-slate-100'}">${esc(mtShort(mtLab(tg, hero), 18))}</button>`; }
+        function mtPickRender() {
+            const ov = document.getElementById('mtPick'); if (!ov || !mtPk) return; const hero = playerSelect.value, k = mtPk.k, tab = mtPk.tab || 'pl';
+            const tabs = [['pl', 'Joueurs'], ['pr', 'Profils'], ['man', 'Saisie manuelle']].map(([v, l]) => `<button data-mt="ptab" data-v="${v}" class="flex-1 min-h-[44px] rounded-xl text-sm font-bold ${tab === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('');
+            let body = '';
+            if (tab === 'pl') { const fav = MT.fav.filter(t => t !== MT.tg[k]), rec = MT.rec.filter(t => !MT.fav.includes(t));
+                body = `<input id="mtQ" type="search" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Début du pseudo…" value="${esc(mtPk.q || '')}" class="w-full h-14 rounded-xl bg-slate-950 border border-slate-600 px-4 text-lg text-white mb-3">
+                    <div class="flex flex-wrap gap-2 mb-2">${mtChip('f', hero)}${fav.map(t => mtChip(t, hero, 'bg-amber-500/20 text-amber-200 border border-amber-500/40')).join('')}</div>
+                    ${rec.length ? `<div class="text-[11px] uppercase font-bold text-slate-500 mb-1">Récents</div><div class="flex flex-wrap gap-2 mb-3">${rec.map(t => mtChip(t, hero)).join('')}</div>` : ''}
+                    <div id="mtPL" class="space-y-2">${mtSearch(mtPk.q || '').map(mtRowHtml).join('') || '<p class="text-slate-400 text-sm">Aucun joueur.</p>'}</div>`; }
+            else if (tab === 'pr') { const tg = _mtIx ? _mtIx.tg : {}, nA = t => Object.keys(tg).filter(p => tg[p].includes(t)).length, arch = (typeof plArch === 'function' ? plArch() : []).filter(t => nA(t));
+                body = `<p class="text-xs text-slate-400 mb-2">Un profil = tous les joueurs de ta base qui portent cette étiquette.</p><div class="flex flex-wrap gap-2">${mtChip('f', hero)}${arch.map(t => `<button data-mt="set" data-tg="${esc('a:' + t)}" class="px-3 min-h-[44px] rounded-xl text-sm font-bold bg-slate-800 text-slate-100">🏷️ ${esc(t)} <span class="text-slate-400 font-normal">· ${nA(t)} j.</span></button>`).join('')}</div>`; }
+            else { const m = mtPk.m || (mtPk.m = { name: '', sh: '', ca: '', n: 20 }), ex = Object.keys(MT.man);
+                const stp = (f, l, d, max) => `<div class="rounded-xl bg-slate-800/60 p-2"><div class="text-xs text-slate-300 mb-1">${l}</div><div class="flex items-center gap-2"><button data-mt="mstep" data-f="${f}" data-d="-${d}" class="w-12 h-12 rounded-xl bg-slate-700 text-lg font-bold">−</button><input data-mf="${f}" inputmode="numeric" value="${esc(m[f])}" placeholder="—" class="w-20 h-12 rounded-xl bg-slate-950 border border-slate-600 text-center text-lg text-white"><button data-mt="mstep" data-f="${f}" data-d="${d}" data-max="${max}" class="w-12 h-12 rounded-xl bg-slate-700 text-lg font-bold">+</button></div></div>`;
+                body = `<input data-mf="name" value="${esc(m.name)}" placeholder="Nom (ex. inconnu table 2)" class="w-full h-12 rounded-xl bg-slate-950 border border-slate-600 px-3 text-base text-white mb-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">${stp('sh', 'Shove en premier (%)', 5, 100)}${stp('ca', 'Paie un shove (%)', 5, 100)}${stp('n', 'Mains observées', 10, 999)}</div>
+                    <p class="text-xs text-slate-400 mb-3">La grille a besoin de son % de shove et de son % de call : VPIP et PFR ne suffisent pas à les déduire. Si tu n’en connais qu’un, laisse l’autre vide : le field moyen sera utilisé pour celui-là. Le nombre de mains règle la confiance : peu de mains, la grille reste proche du field.</p>
+                    <button data-mt="msave" class="w-full min-h-[52px] rounded-xl text-base font-black bg-indigo-600 text-white">Utiliser ces stats</button>
+                    ${ex.length ? `<div class="text-[11px] uppercase font-bold text-slate-500 mt-4 mb-1">Déjà saisis</div><div class="flex flex-wrap gap-2">${ex.map(n => `<span class="inline-flex items-center gap-1">${mtChip('m:' + n, hero)}<button data-mt="mdel" data-v="${esc(n)}" aria-label="Supprimer" class="w-10 min-h-[44px] rounded-xl bg-slate-800 text-rose-300">✕</button></span>`).join('')}</div>` : ''}`; }
+            ov.innerHTML = `<div class="w-full max-w-xl max-h-[94vh] bg-slate-900 rounded-2xl border border-white/10 flex flex-col">
+                <div class="flex items-center gap-2 p-3 border-b border-white/10"><div class="font-bold text-slate-100">Siège ${mtPosOf(k)} : choisir l’adversaire</div><button data-mt="pclose" aria-label="Fermer" class="ml-auto w-12 h-12 rounded-xl bg-slate-800 text-xl text-slate-200">✕</button></div>
+                <div class="flex gap-2 p-3 pb-0">${tabs}</div><div class="p-3 overflow-auto">${body}</div></div>`;
+            if (tab === 'pl') { const q = document.getElementById('mtQ'); q.addEventListener('input', () => { mtPk.q = q.value; const l = document.getElementById('mtPL'); if (l) l.innerHTML = mtSearch(q.value).map(mtRowHtml).join('') || '<p class="text-slate-400 text-sm">Aucun joueur.</p>'; }); if (mtPk.focus) { q.focus(); mtPk.focus = false; } }
+            ov.querySelectorAll('[data-mf]').forEach(i => i.addEventListener('input', () => { mtPk.m[i.dataset.mf] = i.value; }));
+        }
+        function mtOpenPick(k) {
+            const hero = playerSelect.value; if (!hero) return; try { mtIndex(hero); } catch (e) { console.error(e); }
+            let ov = document.getElementById('mtPick'); if (!ov) { ov = document.createElement('div'); ov.id = 'mtPick'; document.body.appendChild(ov); }
+            ov.className = 'fixed inset-0 z-[90] bg-black/70 flex items-end sm:items-center justify-center p-2'; mtPk = { k, tab: 'pl', q: '', focus: true }; mtPickRender();
+        }
+        function mtClosePick() { const ov = document.getElementById('mtPick'); if (ov) ov.remove(); mtPk = null; }
+        function mtSet(k, tg) { MT.tg[k] = tg; if (tg !== 'f') MT.rec = [tg, ...MT.rec.filter(t => t !== tg)].slice(0, 8); mtCell = null; mtSave(); mtClosePick(); renderMt(); }
+
+        // --- actions (délégation : aucun pseudo dans le code des boutons, donc pas de souci d'apostrophes) ---
+        document.addEventListener('click', e => {
+            const b = e.target.closest('[data-mt]'); if (!b) return; const a = b.dataset.mt, k = +b.dataset.k;
+            if (a === 'cell') { mtCell = +b.dataset.i; const s = mtLast && mtLast.s; if (s) { document.querySelectorAll('#mtBox [data-mt=cell].ring-2').forEach(x => x.classList.remove('ring-2', 'ring-white', 'z-10')); b.classList.add('ring-2', 'ring-white', 'z-10'); const inf = document.getElementById('mtInfo'); if (inf) inf.innerHTML = mtCellInfo(s); } return; }
+            if (a === 'btn') { MT.btn = k; }
+            else if (a === 'next') { MT.btn = (MT.btn + 1) % mtN(); }
+            else if (a === 'fmt') { MT.fmt = b.dataset.v === 'HU' ? 'HU' : '3'; MT.btn = Math.min(MT.btn, mtN() - 1); }
+            else if (a === 'st') { MT.st[k] = mtQ(mtQ(MT.st[k]) + +b.dataset.d); }
+            else if (a === 'all') { for (let i = 0; i < 3; i++) MT.st[i] = +b.dataset.v; }
+            else if (a === 'sit') { const s = mtLast && mtLast.R.S[+b.dataset.i]; if (s) MT.sit = s.id; mtCell = null; }
+            else if (a === 'fs') { mtFs = !mtFs; try { if (mtFs) document.documentElement.requestFullscreen?.(); else if (document.fullscreenElement) document.exitFullscreen?.(); } catch (x) { } }
+            else if (a === 'pick') { mtOpenPick(k); return; }
+            else if (a === 'pclose') { mtClosePick(); return; }
+            else if (a === 'ptab') { if (mtPk) { mtPk.tab = b.dataset.v; mtPk.focus = b.dataset.v === 'pl'; mtPickRender(); } return; }
+            else if (a === 'set') { if (mtPk) mtSet(mtPk.k, b.dataset.tg); return; }
+            else if (a === 'fav') { const t = b.dataset.tg; MT.fav = MT.fav.includes(t) ? MT.fav.filter(x => x !== t) : [t, ...MT.fav].slice(0, 12); mtSave(); mtPickRender(); return; }
+            else if (a === 'mstep') { const m = mtPk.m, f = b.dataset.f, max = +(b.dataset.max || 999), cur = m[f] === '' || m[f] == null ? (f === 'n' ? 20 : 30) : +m[f]; m[f] = Math.max(f === 'n' ? 1 : 0, Math.min(max, cur + +b.dataset.d)); mtPickRender(); return; }
+            else if (a === 'msave') { const m = mtPk.m, name = (m.name || '').trim() || 'Inconnu ' + (Object.keys(MT.man).length + 1), cl = v => v === '' || v == null || !isFinite(+v) ? null : Math.max(0, Math.min(100, +v));
+                MT.man[name] = { sh: cl(m.sh), ca: cl(m.ca), n: Math.max(1, +m.n || 20) }; mtSet(mtPk.k, 'm:' + name); return; }
+            else if (a === 'mdel') { delete MT.man[b.dataset.v]; MT.tg = MT.tg.map(t => t === 'm:' + b.dataset.v ? 'f' : t); MT.rec = MT.rec.filter(t => t !== 'm:' + b.dataset.v); MT.fav = MT.fav.filter(t => t !== 'm:' + b.dataset.v); mtSave(); mtPickRender(); return; }
+            else return;
+            mtSave(); renderMt();
+        });
+        document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && mtFs) { mtFs = false; renderMt(); } });
+
+        // --- accès directs ---
+        function mtOpenWith(tg) { if (!MT.tg.slice(1, mtN()).includes(tg)) { MT.tg[1] = tg; MT.rec = [tg, ...MT.rec.filter(t => t !== tg)].slice(0, 8); } mtCell = null; mtSave(); showTab('mtab'); }
+        function mtFromHand(h) {
+            h = h || (rp && rp.h); const hero = playerSelect.value; if (!h || !h.players.includes(hero) || h.players.length < 2 || h.players.length > 3) return; const so = trSeatOrder(h), bb = bbOf(h) || 20, st = p => mtQ(h.stacks[p] / bb);
+            if (h.players.length === 2) { const opp = h.players.find(p => p !== hero); MT.fmt = 'HU'; MT.btn = so.sb === hero ? 0 : 1; MT.st = [st(hero), st(opp), MT.st[2]]; MT.tg = ['me', 'p:' + opp, MT.tg[2] || 'f']; }
+            else { const ord = [so.btn, so.sb, so.bb], mi = ord.indexOf(hero); if (mi < 0 || ord.some(p => !p)) return; MT.fmt = '3'; MT.btn = (3 - mi) % 3; const P = [0, 1, 2].map(k => ord[(mi + k) % 3]); MT.st = P.map(st); MT.tg = ['me', 'p:' + P[1], 'p:' + P[2]]; }
+            MT.tg.slice(1).forEach(t => { if (t && t.startsWith('p:')) MT.rec = [t, ...MT.rec.filter(x => x !== t)].slice(0, 8); });
+            MT.sit = null; mtCell = null; mtSave(); try { rpClose(); } catch (e) { } showTab('mtab');
+        }
+        { const _rr66 = renderReplay; renderReplay = function () { _rr66.apply(this, arguments); try { if (!rp || document.getElementById('rpMT') || rp.h.players.length < 2 || rp.h.players.length > 3) return; const b = document.querySelector('#rp-body button[onclick="rpGo(999)"]'); if (b) b.insertAdjacentHTML('afterend', ' <button id="rpMT" onclick="mtFromHand()" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold">📱 Mode table sur cette main</button>'); } catch (e) { } }; }
+        { const _ps66 = plSynthUI; plSynthUI = function (hero) { _ps66.apply(this, arguments); try { const syn = document.getElementById('plSyn'); if (!syn || !pl.tgt || document.getElementById('plMT')) return; const tg = pl.tgt.startsWith('p:') || pl.tgt.startsWith('a:') ? pl.tgt : null; if (!tg) return;
+            const row = syn.querySelector('div'); if (row) { row.insertAdjacentHTML('beforeend', `<button id="plMT" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold">📱 Mode table contre ${tg.startsWith('p:') ? 'lui' : 'ce profil'}</button>`); document.getElementById('plMT').addEventListener('click', () => mtOpenWith(tg)); } } catch (e) { console.error('plMT', e); } }; }
+
+        // --- onglet « 📱 Mode table » dans Adversaires ---
+        { const sm = document.getElementById('tab-sim'); if (sm && !document.getElementById('tab-mtab')) sm.insertAdjacentHTML('afterend', '<section id="tab-mtab" class="hidden"><div id="mtBox"></div></section>');
+            const sb = document.getElementById('subBar'); if (sb && !document.querySelector('.tab-btn[data-tab="mtab"]')) { const b = document.createElement('button'); b.dataset.tab = 'mtab'; b.className = 'tab-btn px-4 py-2 rounded-xl text-[13px] font-semibold transition bg-slate-800 text-slate-300'; b.textContent = '📱 Mode table'; b.title = 'Table tactile : bouton déplaçable, stacks rapides, grille contre un adversaire précis'; b.addEventListener('click', () => showTab('mtab')); const ref = document.querySelector('.tab-btn[data-tab="sim"]'); if (ref) ref.insertAdjacentElement('afterend', b); else sb.appendChild(b); }
+            const g = NAV.find(x => x.id === 'opp'); if (g && !g.tabs.includes('mtab')) g.tabs.splice(Math.max(0, g.tabs.indexOf('sim')) + 1, 0, 'mtab'); NAV_TAB.mtab = ['📱 Mode table', 'Table tactile : bouton déplaçable, stacks rapides, grille de call ou de shove contre un adversaire précis'];
+            const _st66 = showTab; showTab = function (t) { _st66(t); const s = document.getElementById('tab-mtab'); if (s) s.classList.toggle('hidden', t !== 'mtab'); if (t !== 'mtab' && mtFs) { mtFs = false; try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { } }
+                if (t === 'mtab') { document.querySelectorAll('.tab-btn').forEach(b => { const on = b.dataset.tab === 'mtab'; b.classList.toggle('bg-indigo-600', on); b.classList.toggle('text-white', on); b.classList.toggle('bg-slate-800', !on); b.classList.toggle('text-slate-300', !on); }); try { navSync('mtab'); } catch (e) { } renderMt(); try { if (innerWidth < 1400) document.getElementById('mtBox').scrollIntoView({ block: 'start' }); } catch (e) { } } };
+            try { navSync(); } catch (e) { } }
+        { const _ta66 = triggerAnalysis; triggerAnalysis = function () { const r = _ta66.apply(this, arguments); try { if (curTab() === 'mtab') renderMt(); } catch (e) { } return r; }; }
 
 </script>
 </body>
