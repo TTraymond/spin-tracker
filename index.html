@@ -1925,7 +1925,7 @@
             const th = 'text-left text-[10px] uppercase text-slate-400 font-bold pb-2 pr-4 sticky top-0 bg-slate-900';
             el.innerHTML = `<table class="w-full text-sm"><thead><tr><th class="${th}"></th><th class="${th}">Date</th><th class="${th}">Cartes</th><th class="${th}">Format</th><th class="${th}">Pos.</th><th class="${th}">Stack</th><th class="${th}">Résultat</th><th class="${th}"></th><th class="${th}">Note</th></tr></thead><tbody>` +
                 l.slice(0, handLimit).map((x, k) => { const h = x.h, bb = bbOf(h) || 1;
-                    return `<tr onclick="openHandIdx(${k})" class="border-t border-white/5 cursor-pointer hover:bg-slate-700/40"><td class="py-1.5 pr-2"><button onclick="event.stopPropagation();toggleStar('${esc(h.id)}')" class="${x.n.star ? 'text-amber-400' : 'text-slate-600'}">${x.n.star ? '★' : '☆'}</button></td>
+                    return `<tr onclick="openHandIdx(${k})" class="border-t border-white/5 cursor-pointer hover:bg-slate-700/40"><td class="py-1.5 pr-2"><button onclick="event.stopPropagation();toggleStar('${esc(h.id)}')" class="${x.n.star ? 'text-amber-400' : 'text-slate-600'}">${x.n.star ? '★' : '☆'}</button>${h.players.length <= 3 && h.players.length >= 2 ? `<button onclick="event.stopPropagation();mtFromHandId('${esc(h.id)}',0)" title="Ouvrir ce spot dans le Mode table" class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-emerald-800 text-white">📱</button>` : ''}</td>
                         <td class="pr-4 text-slate-400 text-xs">${tsFr(h.ts)}</td><td class="pr-4">${cardsH(h.hole[1])}</td><td class="pr-4">${h.players.length === 2 ? 'HU' : '3-way'}</td><td class="pr-4">${posOf(h, hero)}</td><td class="pr-4">${(h.stacks[hero] / bb).toFixed(1)} BB</td>
                         <td class="pr-4 font-bold ${x.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${x.net >= 0 ? '+' : ''}${x.net} <span class="text-slate-500 font-normal text-xs">(${(x.net / bb).toFixed(1)} BB)</span></td>
                         <td class="pr-4 text-xs">${hasAllin(h) ? '💥' : ''}${Object.keys(h.shown).length ? '👁' : ''}</td><td class="text-xs text-slate-400 max-w-[14rem] truncate">${esc(x.n.note || '')}</td></tr>`; }).join('') + '</tbody></table>' +
@@ -7801,13 +7801,24 @@
                 h += `<button data-mt="cell" data-i="${i}" class="aspect-square rounded-[3px] font-bold leading-none ${mtCell === i ? 'ring-2 ring-white z-10' : ''}" style="background:${bg};color:${fg};font-size:clamp(7px,1.25vw,12px)">${cname(i)}</button>`; }
             return h + '</div>';
         }
+        // panneau d'une main : EV de chaque option en barres, écart avec ta charte, et la raison principale de l'écart
         function pfCellInfo(p) {
             if (mtCell == null) return '<span class="text-slate-500">Touche une main pour voir l’EV de chaque option.</span>';
             const i = mtCell, b = p.best[i]; if (b < 0) return `<b class="text-white text-base">${cname(i)}</b> : l’adversaire n’arrive jamais ici avec des mains compatibles.`;
-            const f2 = v => isFinite(v) ? simSg(v, 2) : '—', A = p.A, z = A.reduce((s, a) => s + p.Ph[a][i], 0);
-            const th = A.filter(a => p.Ph[a][i] > .005).map(a => `${pfLab(p.k, a, p.fmt)} ${pfPc(p.Ph[a][i] / (z || 1))}`).join(' / ') || '—';
-            const dl = p.ev0 ? A.map(a => `${pfLab(p.k, a, p.fmt)} ${f2(p.ev[a][i] - p.ev0[a][i])}`).join(' · ') : '';
-            return `<b class="text-white text-base">${cname(i)}</b> → <b class="text-emerald-300">${pfLab(p.k, A[b], p.fmt)}</b>${p.gap[i] < .05 ? ' <span class="text-amber-300">(presque égal)</span>' : ''} <span class="text-slate-400">· théorie : ${th}</span>${p.anchored && p.ev0 && p.ev0 !== p.ev ? `<br><span class="text-slate-300">Ce que ses écarts te rapportent en plus, par option : ${dl} BB</span>` : ''}<br><span class="text-[11px] text-slate-500">EV estimée contre lui : ${A.map(a => `${pfLab(p.k, a, p.fmt)} ${f2(p.ev[a][i])}`).join(' · ')} BB</span>`;
+            const f2 = v => isFinite(v) ? simSg(v, 2) : '—', A = p.A, L = a => pfLab(p.k, a, p.fmt), z = A.reduce((s, a) => s + p.Ph[a][i], 0), ph = a => z > 0 ? p.Ph[a][i] / z : 0, best = A[b];
+            const aS = z > 0 ? A.reduce((m, a) => ph(a) > ph(m) ? a : m, A[0]) : null, E = A.filter(a => isFinite(p.ev[a][i])), hi = Math.max(...E.map(a => p.ev[a][i])), lo = Math.min(...E.map(a => p.ev[a][i]), hi - 1.5);
+            const bars = E.map(a => { const v = p.ev[a][i], w = 6 + 94 * (v - lo) / ((hi - lo) || 1);
+                return `<div class="flex items-center gap-2 text-xs"><span class="w-20 shrink-0 text-right ${a === best ? 'text-white font-bold' : 'text-slate-300'}">${a === best ? '✓ ' : ''}${L(a)}</span><div class="flex-1 h-4 rounded bg-slate-800 overflow-hidden"><div class="h-full rounded" style="width:${w.toFixed(1)}%;background:${PF_COL[a] || ac(a)}"></div></div><span class="w-16 shrink-0 text-right font-bold ${a === best ? 'text-white' : 'text-slate-300'}">${f2(v)}</span><span class="w-24 shrink-0 text-right text-slate-500 whitespace-nowrap">${z > 0 ? 'charte ' + Math.round(100 * ph(a)) + ' %' : ''}</span></div>`; }).join('');
+            let cmp = '', why = '';
+            if (aS && aS !== best && isFinite(p.ev[aS][i])) { cmp = `<div class="text-sm mt-1.5"><span class="text-amber-300 font-bold">≠ ta charte</span> (${L(aS)}${ph(aS) < .75 ? ', mixte' : ''}) : <b>${L(best)}</b> rapporte <b class="text-emerald-300">${f2(p.ev[best][i] - p.ev[aS][i])} BB</b> de plus contre lui.</div>`;
+                const o = (p.opp || []).filter(o => o && o.f && o.ch).map(o => { let m = null, d = 0; (PF_ACTS[o.id] || []).forEach(a => { const x = (o.f[a] || 0) - (o.ch[a] || 0); if (Math.abs(x) > Math.abs(d)) { d = x; m = a; } }); return { o, a: m, d }; }).filter(x => x.a).sort((x, y) => Math.abs(y.d) - Math.abs(x.d))[0];
+                if (o && Math.abs(o.d) >= .03) { const pc = v => Math.round(100 * v) + ' %', who = o.o.seat || PF_OWN[o.o.id] || 'l’adversaire';
+                    why = `<div class="text-xs text-slate-300 mt-1">Pourquoi : <b>${who}</b> ${PF_NODE[o.o.id] ? '<span class="text-slate-400">(' + PF_NODE[o.o.id] + ')</span> ' : ''}${pfVerb(o.o.id, o.a)} <b>${pc(o.o.f[o.a])}</b> contre ${pc(o.o.ch[o.a])} en théorie${o.o.n ? ` <span class="text-slate-500">· ${o.o.n} mains de lui</span>` : ''}.</div>`; } }
+            else if (aS) cmp = `<div class="text-xs text-slate-400 mt-1.5">Comme ta charte${ph(aS) < .75 ? ' (qui mélange ici)' : ''}.</div>`;
+            // la meilleure EV brute n'est pas l'action retenue : l'écart est sous le seuil pour quitter ta charte
+            const amx = E.reduce((m, a) => p.ev[a][i] > p.ev[m][i] ? a : m, E[0]);
+            if (amx && amx !== best && p.anchored) cmp += `<div class="text-xs text-amber-200/90 mt-1">${L(amx)} rapporte ${f2(p.ev[amx][i] - p.ev[best][i])} BB de plus, mais c’est sous ton seuil pour quitter ta charte (${simF1(PF_CFG.lam)} BB, réglable dans Hypothèses) : la grille garde ${L(best)}.</div>`;
+            return `<div class="flex items-baseline gap-2 mb-1.5"><b class="text-white text-lg">${cname(i)}</b><span class="text-slate-400">→</span><b class="text-emerald-300 text-base">${L(best)}</b>${p.gap[i] < .05 ? '<span class="text-amber-300 text-xs">(presque égal)</span>' : ''}<span class="ml-auto text-[11px] text-slate-500">EV en BB contre lui</span></div><div class="space-y-1">${bars}</div>${cmp}${why}`;
         }
         function pfSummary(p) {
             const A = p.A, leg = A.map(a => `<span class="mr-3 whitespace-nowrap"><span style="display:inline-block;width:10px;height:10px;background:${PF_COL[a]}"></span> ${pfLab(p.k, a, p.fmt)}</span>`).join('');
@@ -8041,8 +8052,13 @@
 
         // --- 66. MODE TABLE (tablette) : sièges physiques, bouton déplaçable, stacks rapides, situation, grille 13×13 contre un adversaire précis ---
         // S'appuie sur le moteur du Simulateur (simDecisions, sbLine) : mêmes fréquences, même best response, même incertitude.
-        let MT = { fmt: '3', btn: 0, st: [10, 10, 10], tg: ['me', 'f', 'f'], sit: null, rec: [], fav: [], man: {} };
-        let mtCell = null, mtFs = false, mtLast = null, mtPk = null;
+        let MT = { fmt: '3', btn: 0, st: [10, 10, 10], tg: ['me', 'f', 'f'], sit: null, rec: [], fav: [], man: {}, favS: [], notes: {}, cmp: '', big: false, light: false };
+        let mtCell = null, mtFs = false, mtLast = null, mtPk = null, mtHist = [], mtNoteEd = false, mtFavOpen = false;
+        // historique (bouton Retour) : l'état de la table avant chaque changement
+        const mtSnap = () => ({ fmt: MT.fmt, btn: MT.btn, st: MT.st.slice(), tg: MT.tg.slice(), sit: MT.sit, cell: mtCell });
+        const mtSame = (a, b) => a && b && a.fmt === b.fmt && a.btn === b.btn && a.sit === b.sit && a.st.join() === b.st.join() && a.tg.join() === b.tg.join();
+        function mtPush() { const x = mtSnap(); if (mtSame(mtHist[mtHist.length - 1], x)) return false; mtHist.push(x); if (mtHist.length > 40) mtHist.shift(); return true; }
+        function mtApply(x) { MT.fmt = x.fmt; MT.btn = x.btn; MT.st = x.st.slice(); MT.tg = x.tg.slice(); MT.sit = x.sit; mtCell = x.cell == null ? null : x.cell; }
         (async () => { try { const d = await localforage.getItem('mt_cfg'); if (d && d.st) MT = { ...MT, ...d }; } catch (e) { } })();
         const mtSave = () => { try { localforage.setItem('mt_cfg', MT); } catch (e) { } };
         const MT_POS = ['BTN', 'SB', 'BB'], MT_STK = [3, 5, 7, 10, 13, 15, 20];
@@ -8136,17 +8152,17 @@
                 const w = (opts.find(o => o.a !== 'act') || opts[0]).w, me = w === R.me, nm = me ? 'Moi' : mtShort(mtLab(R.seat[w], hero), 16);
                 return `<div class="flex items-center gap-2"><div class="w-24 shrink-0 flex flex-col items-start gap-0.5"><span class="text-[11px] font-black px-2 py-0.5 rounded-md ${pc(w)}">${w}</span><span class="text-[11px] ${me ? 'text-indigo-200 font-bold' : 'text-slate-400'} truncate max-w-full">${esc(nm)}</span></div>
                     <div class="flex-1 grid gap-2" style="grid-template-columns:repeat(${Math.max(opts.length, 2)},minmax(0,1fr))">${opts.map(o => { const k = mtSK(o), on = k === sel, isA = o.a === 'act', c = isA ? '#4f46e5' : ac(o.a), cs = acLum(c) < .05 ? '#64748b' : c;
-                        return `<button data-mt="step" data-r="${r}" data-key="${esc(k)}" class="min-h-[52px] rounded-xl text-[15px] font-black px-2 leading-tight ${on ? 'ring-2 ring-white shadow-lg' : 'opacity-90'}" style="${on ? `background:${c};color:${isA ? '#fff' : acFg(o.a)}` : `background:#1e293b;color:#e2e8f0;box-shadow:inset 6px 0 0 ${cs}`}">${mtStepLab(o)}</button>`; }).join('')}</div></div>`; }).join('')}</div>`;
+                        return `<button data-mt="step" data-r="${r}" data-key="${esc(k)}" class="min-h-[52px] rounded-xl text-[15px] font-black px-2 leading-tight ${on ? 'ring-2 ring-white shadow-lg' : 'opacity-90 bg-slate-800'}" style="${on ? `background:${c};color:${isA ? '#fff' : acFg(o.a)}` : `color:#e2e8f0;box-shadow:inset 6px 0 0 ${cs}`}">${mtStepLab(o)}</button>`; }).join('')}</div></div>`; }).join('')}</div>`;
         }
 
         // --- affichage ---
         const MT_COL = { shove: '#dc2626', call: '#059669', fold: '#1e293b', check: '#64748b' };
         function mtDots(n) { const k = n < 5 ? 1 : n < 15 ? 2 : n < 40 ? 3 : 4; return `<span class="tracking-tight ${k <= 2 ? 'text-amber-300' : 'text-emerald-300'}">${'●'.repeat(k)}${'○'.repeat(4 - k)}</span> <span class="text-slate-400">${['', 'très faible', 'faible', 'correcte', 'bonne'][k]}</span>`; }
-        function mtSeatHtml(k, hero, x, y) {
+        function mtSeatHtml(k, hero, x, y, mini) {
             const pos = mtPosOf(k), me = k === 0, tg = MT.tg[k] || 'f', isB = k === MT.btn % mtN(), P = me ? null : (() => { try { return buildProfiles()[tg.startsWith('p:') ? tg.slice(2) : '']; } catch (e) { return null; } })();
             let sub = ''; if (!me) { if (tg.startsWith('p:')) { const t = _mtIx && _mtIx.tg[tg.slice(2)]; sub = `${P ? P.n : 0} mains${t && t.length && P && P.n >= 30 ? ' · ' + esc([...new Set(t)].slice(0, 2).join(' / ')) : ''}`; } else if (tg.startsWith('m:')) { const m = MT.man[tg.slice(2)] || {}; sub = `saisie : shove ${m.sh ?? '—'} % · call ${m.ca ?? '—'} %`; } else sub = tg === 'f' ? 'touche pour choisir' : tg === 'g' ? 'joue exactement tes charts' : 'profil'; }
             const pc = pos === 'BTN' ? 'bg-amber-500 text-slate-900' : pos === 'SB' ? 'bg-sky-600 text-white' : 'bg-violet-600 text-white';
-            return `<div class="absolute -translate-x-1/2 -translate-y-1/2 w-[46%] max-w-[230px] rounded-2xl ${me ? 'bg-indigo-950/95 border-indigo-400' : 'bg-slate-900/95 border-white/15'} border-2 p-2 shadow-xl" style="left:${x}%;top:${y}%">
+            return `<div class="${mini ? '' : 'absolute -translate-x-1/2 -translate-y-1/2 w-[46%] max-w-[230px] shadow-xl '}rounded-2xl ${me ? 'bg-indigo-950/95 border-indigo-400' : 'bg-slate-900/95 border-white/15'} border-2 p-2"${mini ? '' : ` style="left:${x}%;top:${y}%"`}>
                 <div class="flex items-center justify-between gap-1 mb-1"><span class="text-xs font-black px-2 py-1 rounded-lg ${pc}">${pos}</span>
                     <button data-mt="btn" data-k="${k}" aria-label="Mettre le bouton ici" class="w-10 h-10 rounded-full text-sm font-black border-2 ${isB ? 'bg-white text-slate-900 border-amber-400 shadow' : 'bg-transparent text-slate-500 border-slate-600 border-dashed'}">D</button></div>
                 ${me ? `<div class="text-sm font-bold text-indigo-200 truncate px-1">Moi</div>` : `<button data-mt="pick" data-k="${k}" class="w-full text-left rounded-xl bg-slate-800 active:bg-slate-700 px-2 py-2 min-h-[44px]"><div class="text-sm font-bold text-slate-100 truncate">${esc(mtLab(tg, hero))} <span class="text-slate-400">▾</span></div><div class="text-[11px] text-slate-400 truncate">${sub}</div></button>`}
@@ -8181,38 +8197,69 @@
             const L = s.l; return `<div class="text-sm text-slate-200">${L.why}</div><div class="text-sm text-slate-100 mt-1">Ta meilleure ligne : ${L.res}</div><div class="text-xs mt-1 text-slate-300">Gain vs référence field : <b>${simSg(L.gain, Math.abs(L.gain) < .1 ? 3 : 2)} BB</b> par spot${L.nObs ? ` · ${L.nObs} obs. · fiabilité ${mtDots(L.nObs)}` : ' · adversaire = moyenne du field'}</div>
                 <div class="text-[11px] text-slate-400 mt-1">${['fold', 'check', 'call', 'shove'].filter(a => L.acts.includes(a)).map(a => `<span class="mr-3"><span style="display:inline-block;width:10px;height:10px;background:${MT_COL[a]}"></span> ${a}</span>`).join('')}</div>`;
         }
-        // --- rendu par zones : on ne remplace que les zones dont le HTML change (tablette : moins de mise en page et de peinture à chaque tap) ---
-        let _mtMemo = null, _mtRg = null, _mtT = null;
-        // calcul mémorisé : même table, mêmes adversaires, mêmes données → aucune recalcul (taps sur la ligne d'action, les vues de range, les cases)
-        function mtComputeM(hero) {
-            const k = [hero, MT.fmt, MT.btn, MT.st.slice(0, mtN()).map(mtQ).join(','), MT.tg.slice(0, mtN()).join(','), dKey(), allParsedHands.length, JSON.stringify(PF_CFG), JSON.stringify(MT.man), typeof s4C !== 'undefined' ? Object.keys(s4C).length : 0].join('|'), ref = pfRef();
-            if (_mtMemo && _mtMemo.k === k && _mtMemo.ref === ref) return _mtMemo.R;
-            const R = mtCompute(hero); _mtMemo = { k, ref, R }; return R; }
+        // --- rendu par zones : on ne met à jour que ce qui change, en modifiant les éléments existants (pas de reconstruction de la grille) ---
+        let _mtMemo = null, _mtMemo2 = null, _mtRg = null, _mtT = null;
+        const mtKey = hero => [hero, MT.fmt, MT.btn, MT.st.slice(0, mtN()).map(mtQ).join(','), MT.tg.slice(0, mtN()).join(','), dKey(), allParsedHands.length, JSON.stringify(PF_CFG), JSON.stringify(MT.man), typeof s4C !== 'undefined' ? Object.keys(s4C).length : 0].join('|');
+        // calcul mémorisé : même table, mêmes adversaires, mêmes données → aucun recalcul
+        function mtComputeM(hero) { const k = mtKey(hero), ref = pfRef(); if (_mtMemo && _mtMemo.k === k && _mtMemo.ref === ref) return _mtMemo.R; const R = mtCompute(hero); _mtMemo = { k, ref, R }; return R; }
+        // même table, mais tous les adversaires remplacés par « Field moyen » (comparaison)
+        function mtComputeAlt(hero) { const sv = MT.tg; MT.tg = MT.tg.map((t, i) => i ? 'f' : t); try { const k = mtKey(hero), ref = pfRef(); if (_mtMemo2 && _mtMemo2.k === k && _mtMemo2.ref === ref) return _mtMemo2.R; const R = mtCompute(hero); _mtMemo2 = { k, ref, R }; return R; } finally { MT.tg = sv; } }
         const mtRgDirty = (...ks) => { if (_mtRg) ks.forEach(k => delete _mtRg.h[k]); };
         const mtPts = () => MT.fmt === 'HU' ? [[0, 50, 84], [1, 50, 17]] : [[0, 50, 84], [1, 25, 20], [2, 75, 20]];
         const mtStkRow = () => `<button data-mt="next" class="px-3 min-h-[48px] rounded-xl text-base font-black bg-amber-500 text-slate-900 active:bg-amber-400">D ➜ Suivant</button>
                       <span class="text-[11px] uppercase font-bold text-slate-400 ml-1">Stacks</span>${MT_STK.map(v => `<button data-mt="all" data-v="${v}" class="w-10 min-h-[44px] rounded-xl text-base font-bold ${MT.st.slice(0, mtN()).every(x => mtQ(x) === v) ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'}">${v}</button>`).join('')}`;
+        // mise à jour en place : on garde les éléments, on ne change que leurs attributs et leurs textes
+        function mtMorph(el, html) { const T = document.createElement('template'); T.innerHTML = html; mtKids(el, T.content); }
+        function mtKids(a, b) { const A = a.childNodes, B = b.childNodes; if (A.length !== B.length) { a.replaceChildren(...Array.from(B)); return; } for (let i = B.length - 1; i >= 0; i--) mtNode(A[i], B[i]); }
+        function mtNode(x, y) { if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) { x.replaceWith(y); return; }
+            if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
+            for (const at of Array.from(x.attributes)) if (!y.hasAttribute(at.name)) x.removeAttribute(at.name);
+            for (const at of Array.from(y.attributes)) if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value);
+            if (x.tagName === 'TEXTAREA') return; mtKids(x, y); }
         function mtPatch(el, Z, skel) {
             if (!_mtRg || _mtRg.skel !== skel || !el.querySelector('[data-rg]')) {
-                const z = k => `<div data-rg="${k}"${k.startsWith('seat') ? ' style="display:contents"' : ''}>${Z[k] || ''}</div>`;
-                el.innerHTML = `<div class="${mtFs ? 'fixed inset-0 z-[70] overflow-auto bg-slate-950 p-3' : 'rounded-2xl bg-slate-950/40 border border-white/10 p-3'}">
+                const z = k => `<div data-rg="${k}"${k.startsWith('seat') && !MT.big ? ' style="display:contents"' : ''}>${Z[k] || ''}</div>`, n = mtN(),
+                    inf = `<div id="mtInfo" data-rg="info" class="min-h-[48px] rounded-xl bg-slate-900 border border-white/10 px-3 py-2 mt-2 text-sm text-slate-200">${Z.info || ''}</div>`;
+                el.innerHTML = `<div class="${mtFs ? 'fixed inset-0 z-[70] overflow-auto bg-slate-950 p-3' : 'rounded-2xl bg-slate-950/40 border border-white/10 p-3'}${MT.light ? ' mtLight' : ''}">
                 ${z('top')}
-                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] items-start">
+                <div class="grid gap-4 ${MT.big ? 'lg:grid-cols-[minmax(0,.78fr)_minmax(0,1.22fr)]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]'} items-start">
                   <div class="space-y-3">
-                    <div class="relative w-full rounded-[44%] border-[6px] border-amber-900/70 bg-gradient-to-b from-emerald-800 to-emerald-950" style="aspect-ratio:16/10;${mtFs ? 'max-height:44vh;min-height:240px' : 'max-height:42vh;min-height:250px'}">
+                    ${MT.big ? `<div class="grid gap-2" style="grid-template-columns:repeat(${n},minmax(0,1fr))">${mtPts().map(([k]) => z('seat' + k)).join('')}</div>`
+                    : `<div class="relative w-full rounded-[44%] border-[6px] border-amber-900/70 bg-gradient-to-b from-emerald-800 to-emerald-950" style="aspect-ratio:16/10;${mtFs ? 'max-height:44vh;min-height:240px' : 'max-height:42vh;min-height:250px'}">
                       <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-emerald-100/70 text-xs">Pot 1,5 BB<br>${MT.fmt === 'HU' ? 'heads-up' : '3-way'}</div>
                       ${mtPts().map(([k]) => z('seat' + k)).join('')}
-                    </div>
+                    </div>`}
                     <div data-rg="stk" class="flex flex-wrap items-center gap-1.5">${Z.stk}</div>
-                    ${z('line')}
+                    ${z('line')}${MT.big ? z('head') + inf : ''}
                   </div>
-                  <div data-rg="rwrap">${z('head')}${z('grid')}<div id="mtInfo" data-rg="info" class="min-h-[48px] rounded-xl bg-slate-900 border border-white/10 px-3 py-2 mt-2 text-sm text-slate-200">${Z.info || ''}</div>${z('sum')}</div>
+                  <div data-rg="rwrap">${MT.big ? '' : z('head')}${z('grid')}${MT.big ? '' : inf}${z('sum')}</div>
                 </div>
                 <p class="text-[10px] text-slate-500 mt-3">Heads-up et blind vs blind : tes charts servent de théorie ; la range de l’adversaire garde la forme de ta charte, élargie ou resserrée selon ses fréquences dans tes HH (ramenées vers le field quand il y a peu de mains). 3-way : ta charte 3-way, et ta sim « BTN limp » quand le BTN limpe. Outil d’étude entre les sessions.</p></div>`;
                 _mtRg = { skel, h: { ...Z } }; return; }
-            for (const k of Object.keys(Z)) { if (_mtRg.h[k] === Z[k]) continue; const n = el.querySelector(`[data-rg="${k}"]`); if (n) n.innerHTML = Z[k]; _mtRg.h[k] = Z[k]; }
+            for (const k of Object.keys(Z)) { if (_mtRg.h[k] === Z[k]) continue; const n = el.querySelector(`[data-rg="${k}"]`); if (n) mtMorph(n, Z[k]); _mtRg.h[k] = Z[k]; }
             const w = el.querySelector('[data-rg="rwrap"]'); if (w) w.style.opacity = '';
         }
+        // --- favoris, notes, comparaison ---
+        const mtNK = (R, s) => MT.fmt + '|' + R.me + '|' + s.id;
+        const mtFavIdx = () => (MT.favS || []).findIndex(f => mtSame(f, mtSnap()));
+        function mtFavName(R, s, hero) { const opp = [1, 2].slice(0, mtN() - 1).map(k => `${mtPosOf(k)} ${mtShort(mtLab(MT.tg[k], hero), 14)}`).join(', ');
+            const ln = s.path ? (s.path.length ? s.path.map(st => `${st.w} ${mtStepLab(st).toLowerCase()}`).join(' → ') + ' → ' : '') + `moi (${R.me})` : s.lab;
+            return `${MT.fmt === 'HU' ? 'HU' : '3-way'} · ${ln} · ${MT.st.slice(0, mtN()).map(mtQ).join('/')} BB · ${opp}`; }
+        function mtFavPanel() { const L = MT.favS || []; if (!mtFavOpen) return '';
+            return `<div class="rounded-2xl bg-slate-900 border border-amber-500/30 p-2 mb-3"><div class="text-[11px] uppercase font-bold text-amber-300 px-1 mb-1">Spots favoris (${L.length})</div>${L.length ? `<div class="space-y-1.5 max-h-[34vh] overflow-auto">${L.map((f, i) => `<div class="flex items-center gap-2"><button data-mt="fload" data-i="${i}" class="flex-1 text-left rounded-xl bg-slate-800 active:bg-slate-700 px-3 py-2 min-h-[44px] text-sm text-slate-100">${esc(f.name)}${MT.notes && f.nk && MT.notes[f.nk] ? ` <span class="text-amber-200/80 text-xs">📝 ${esc(mtShort(MT.notes[f.nk], 50))}</span>` : ''}</button><button data-mt="fdel" data-i="${i}" aria-label="Retirer" class="w-11 h-11 rounded-xl bg-slate-800 text-slate-400">✕</button></div>`).join('')}</div>` : '<p class="text-sm text-slate-400 px-1">Aucun favori : touche ☆ au-dessus de la grille pour enregistrer le spot affiché.</p>'}</div>`; }
+        // grille réduite pour la comparaison côte à côte (act(i) = action principale de la main, mark(i) = main qui change)
+        function mtMiniGrid(act, mark, lab) { let h = `<div class="min-w-0"><div class="text-xs font-bold text-slate-300 mb-1 truncate">${lab}</div><div class="grid gap-[1px] select-none" style="grid-template-columns:repeat(13,minmax(0,1fr))">`;
+            for (let i = 0; i < 169; i++) { const a = act(i), bg = a ? PF_COL[a] || ac(a) : '#0f172a', fg = a ? acFg(a) : '#475569', m = mark(i);
+                h += `<button data-mt="cell" data-i="${i}" class="aspect-square rounded-[2px] font-bold leading-none ${mtCell === i ? 'ring-2 ring-white z-10' : ''}" style="background:${bg};color:${fg};font-size:clamp(6px,.75vw,10px)${m ? ';outline:2px solid #fde047;outline-offset:-2px' : ''}">${cname(i)}</button>`; }
+            return h + '</div></div>'; }
+        function mtCmpHtml(s, hero) { const p = s.pf, A = p.A, cur = i => p.best[i] >= 0 ? A[p.best[i]] : null; let ref, rl;
+            if (MT.cmp === 'f') { let s2 = null; try { const R2 = mtComputeAlt(hero); s2 = R2.S.find(x => x.id === s.id); } catch (e) { console.error('mt alt', e); } const q = s2 && s2.pf; if (!q) return null; ref = i => q.best[i] >= 0 ? q.A[q.best[i]] : null; rl = 'Contre le field moyen'; }
+            else { ref = i => { let b = null, v = .001; A.forEach(a => { if (p.Ph[a][i] > v) { v = p.Ph[a][i]; b = a; } }); return b; }; rl = 'Ta charte (théorie)'; }
+            let n = 0; const ch = new Uint8Array(169); for (let i = 0; i < 169; i++) { const a = ref(i), b = cur(i); if (a && b && a !== b) { ch[i] = 1; n++; } }
+            const L = a => pfLab(p.k, a, p.fmt), cnt = {}; for (let i = 0; i < 169; i++) if (ch[i]) { const k = L(ref(i)) + ' → ' + L(cur(i)); cnt[k] = (cnt[k] || 0) + 1; }
+            const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${k} : ${v}`).join(' · ');
+            return `<div class="grid grid-cols-2 gap-2">${mtMiniGrid(ref, () => 0, rl)}${mtMiniGrid(cur, i => ch[i], 'Contre ' + esc(p.who || 'eux'))}</div>
+                <div class="text-xs text-slate-300 mt-1.5"><span class="inline-block w-3 h-3 align-middle" style="outline:2px solid #fde047;outline-offset:-2px"></span> <b>${n}</b> main${n > 1 ? 's' : ''} sur 169 change${n > 1 ? 'nt' : ''} d’action${top ? ` <span class="text-slate-400">(${top})</span>` : ''}.</div>`; }
         function renderMt() {
             const el = document.getElementById('mtBox'); if (!el) return; const hero = playerSelect.value; clearTimeout(_mtT); _mtT = null;
             if (!hero) { _mtRg = null; el.innerHTML = '<div class="pc text-slate-400">Importe tes HH et choisis ton pseudo.</div>'; return; }
@@ -8223,29 +8270,48 @@
             while (s && s.lz && !s.pf) { R.S.splice(R.S.indexOf(s), 1); s = R.S.find(x => x.id === MT.sit) || R.S[0]; }
             if (s) MT.sit = s.id; mtLast = { R, s };
             const hu = MT.fmt === 'HU', seg = (on, l, a, v) => `<button data-mt="${a}" data-v="${v}" class="px-4 min-h-[44px] rounded-xl text-sm font-bold ${on ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`;
+            const tb = (a, l, on, x = '') => `<button data-mt="${a}" ${x} class="px-3 min-h-[44px] rounded-xl text-sm font-bold ${on ? 'bg-amber-500 text-slate-900' : 'bg-slate-800 text-slate-200'}">${l}</button>`;
             const depW = typeof dep !== 'undefined' && dep.mode !== 'all' ? `<div class="text-xs text-amber-300 mb-2">⚠ Filtre de profondeur global actif (${depLabel()}) : les fréquences n’utilisent que ces mains.</div>` : '';
             const line = s && s.path ? mtLineHtml(R, s, hero) : '', flat = s && !s.path ? `<div class="flex flex-wrap gap-2">${R.S.map((x, i) => `<button data-mt="sit" data-i="${i}" class="px-3 min-h-[44px] rounded-xl text-sm font-bold ${x === s ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-200'}">${esc(x.lab)}</button>`).join('')}</div>` : '';
             const l3 = s && s.pf && s.pf.fmt === '3W' && /^T3(SvL|SR|SC|SLS|XvL|XRL|L)/.test(s.pf.k) ? ` · après le limp : raise SB ${simF1(PF_CFG.Ls)} · raise BB ${simF1(PF_CFG.Lb)} BB` : '';
             const sub = s ? (s.pf ? `${s.pf.fmt === 'BvB' ? 'Blind vs blind (BTN fold)' : s.pf.fmt === '3W' ? '3-way' : 'Heads-up'} · ${simF1(s.pf.E)} BB effectifs · ${l3 ? l3.slice(3) : `${s.pf.fmt === 'BvB' ? 'raise SB ' + simF1(PF_CFG.Rb) : 'min-raise ' + simF1(PF_CFG.R)} · iso ${simF1(PF_CFG.I)} · 3-bet ${simF1(PF_CFG.T)} BB`}` : s.d ? s.d.title + ' · ' + s.d.Etxt : s.l.title + ' · ' + simF1(s.l.E) + ' BB eff.') : '';
             const head = s ? `<div id="mtGridHead" class="mb-2"><div class="text-base font-black text-white leading-snug">${s.path ? (s.path.length ? s.path.map(st => `<span style="color:${acFg(st.a) === '#0f172a' ? ac(st.a) : st.a === 'fold' ? '#94a3b8' : acShade(ac(st.a), .35)}">${st.w === R.me ? 'Moi' : st.w} ${esc(mtStepLab(st).toLowerCase())}</span>`).join(' <span class="text-slate-500">→</span> ') + ' <span class="text-slate-500">→</span> ' : '') + `<span class="text-indigo-300">à moi (${R.me})</span>` : esc(s.lab)}</div><div class="text-xs text-slate-400">${sub}</div></div>` : '';
+            // fréquences de la grille et de ta charte, toujours visibles
+            const p = s && s.pf, dot = a => `<span class="inline-block w-2.5 h-2.5 rounded-sm align-middle mr-1" style="background:${PF_COL[a] || ac(a)}"></span>`;
+            const freq = p ? `<div class="text-xs text-slate-200 mb-2 leading-relaxed"><span class="text-slate-400">Grille :</span> ${p.A.filter(a => p.share[a] >= .5).map(a => `<span class="whitespace-nowrap mr-2">${dot(a)}${pfLab(p.k, a, p.fmt)} <b>${Math.round(p.share[a])} %</b></span>`).join('')}${p.anchored ? `<br><span class="text-slate-400">Ta charte :</span> ${p.A.filter(a => p.tshare[a] >= .5).map(a => `<span class="whitespace-nowrap mr-2 text-slate-300">${dot(a)}${pfLab(p.k, a, p.fmt)} ${Math.round(p.tshare[a])} %</span>`).join('')}` : ''}</div>` : '';
+            // barre d'outils du spot : favori, note, comparaison
+            const nk = s ? mtNK(R, s) : '', note = (MT.notes || {})[nk] || '', fi = mtFavIdx(), canF = [1, 2].slice(0, mtN() - 1).some(k => MT.tg[k] && MT.tg[k] !== 'f' && MT.tg[k] !== 'g');
+            if (MT.cmp === 'f' && !canF) MT.cmp = '';
+            const tools = s ? `<div class="flex flex-wrap gap-2 mb-2">${tb('fsave', fi >= 0 ? '★ Favori' : '☆ Favori', fi >= 0)}${tb('nedit', note ? '📝 Modifier la note' : '📝 Note', mtNoteEd)}${p ? tb('cmp', MT.cmp === 'g' ? '⚖ Comparé à ta charte' : MT.cmp === 'f' ? '⚖ Comparé au field moyen' : '⚖ Comparer', !!MT.cmp) : ''}</div>
+                ${mtNoteEd ? `<div class="mb-2"><textarea id="mtNoteTa" rows="2" placeholder="Ta note sur ce spot (ex. contre lui, iso plus large)" class="w-full rounded-xl bg-slate-950 border border-slate-600 px-3 py-2 text-sm text-white">${esc(note)}</textarea><div class="flex gap-2 mt-1">${tb('nsave', 'Enregistrer', true)}${tb('nedit', 'Annuler', false)}</div></div>`
+                : note ? `<div class="text-sm rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-100 px-3 py-2 mb-2">📝 ${esc(note)}</div>` : ''}` : '';
             const s4 = typeof mtS4Bar === 'function' ? mtS4Bar() : '';
+            const vg = s ? mtVilGrid(s) : '', cmpH = s && p && MT.cmp && !vg ? mtCmpHtml(s, hero) : null;
+            let grid = s ? (vg || cmpH || mtGridHtml(s)) : '<p class="text-slate-400 text-sm">Aucune situation calculable ici.</p>';
+            if (MT.big && !cmpH) grid = grid.replace('max-width:min(100%,66vh)', `max-width:min(100%,calc(100vh - ${mtFs ? 90 : 150}px))`);
             const Z = { top: `<div class="flex flex-wrap items-center gap-2 mb-3">${seg(!hu, '3 joueurs', 'fmt', '3')}${seg(hu, '2 joueurs', 'fmt', 'HU')}<span class="text-xs text-slate-400 ml-1">Moi : <b class="text-indigo-200">${R.me}</b></span>
-                    <button data-ac="open" class="ml-auto px-4 min-h-[44px] rounded-xl text-sm font-bold bg-slate-800 text-slate-200">🎨 Couleurs</button>
-                    <button data-mt="fs" class="px-4 min-h-[44px] rounded-xl text-sm font-bold bg-slate-800 text-slate-200">${mtFs ? '✕ Quitter le plein écran' : '⛶ Plein écran'}</button></div>${depW}`,
+                    <span class="ml-auto"></span>
+                    <button data-mt="back" ${mtHist.length ? '' : 'disabled'} class="px-3 min-h-[44px] rounded-xl text-sm font-bold bg-slate-800 ${mtHist.length ? 'text-slate-200' : 'text-slate-600'}">↩ Retour</button>
+                    ${tb('fopen', `⭐ Favoris${(MT.favS || []).length ? ' (' + MT.favS.length + ')' : ''}`, mtFavOpen)}
+                    ${tb('big', MT.big ? '▣ Table' : '▣ Grille agrandie', MT.big)}
+                    ${tb('light', MT.light ? '🌙 Sombre' : '☀️ Clair', false)}
+                    <button data-ac="open" class="px-3 min-h-[44px] rounded-xl text-sm font-bold bg-slate-800 text-slate-200">🎨 Couleurs</button>
+                    <button data-mt="fs" class="px-3 min-h-[44px] rounded-xl text-sm font-bold bg-slate-800 text-slate-200">${mtFs ? '✕ Plein écran' : '⛶ Plein écran'}</button></div>${mtFavPanel()}${depW}`,
                 stk: mtStkRow(), line: line + flat,
-                head: s ? `${s4}${head}${mtVilBar(s, R, hero)}` : '', grid: s ? (mtVilGrid(s) || mtGridHtml(s)) : '<p class="text-slate-400 text-sm">Aucune situation calculable ici.</p>',
+                head: s ? `${s4}${head}${tools}${freq}${mtVilBar(s, R, hero)}` : '', grid,
                 info: s ? (mtVilInfo(s) ?? mtCellInfo(s)) : '', sum: s ? `<div class="mt-2">${mtVilSum(s) || mtSummary(s)}</div>` : '' };
-            mtPts().forEach(([k, x, y]) => Z['seat' + k] = mtSeatHtml(k, hero, x, y));
-            mtPatch(el, Z, [mtFs ? 1 : 0, MT.fmt].join('|'));
+            mtPts().forEach(([k, x, y]) => Z['seat' + k] = mtSeatHtml(k, hero, x, y, MT.big));
+            mtPatch(el, Z, [mtFs ? 1 : 0, MT.fmt, MT.big ? 1 : 0, MT.light ? 1 : 0].join('|'));
         }
         // tap sur un stack : le chiffre change tout de suite, le calcul part quand tu arrêtes de taper (≈ 0,2 s)
         function mtSoon() { const el = document.getElementById('mtBox'), hero = playerSelect.value; if (!el || !hero || !_mtRg || !el.querySelector('[data-rg]')) { renderMt(); return; }
-            const Z = { stk: mtStkRow() }; mtPts().forEach(([k, x, y]) => Z['seat' + k] = mtSeatHtml(k, hero, x, y));
-            for (const k of Object.keys(Z)) { if (_mtRg.h[k] === Z[k]) continue; const n = el.querySelector(`[data-rg="${k}"]`); if (n) n.innerHTML = Z[k]; _mtRg.h[k] = Z[k]; }
+            const Z = { stk: mtStkRow() }; mtPts().forEach(([k, x, y]) => Z['seat' + k] = mtSeatHtml(k, hero, x, y, MT.big));
+            for (const k of Object.keys(Z)) { if (_mtRg.h[k] === Z[k]) continue; const n = el.querySelector(`[data-rg="${k}"]`); if (n) mtMorph(n, Z[k]); _mtRg.h[k] = Z[k]; }
             const w = el.querySelector('[data-rg="rwrap"]'); if (w) w.style.opacity = '.55';
             clearTimeout(_mtT); _mtT = setTimeout(() => { _mtT = null; renderMt(); }, 200); }
-        // tactile : pas de délai de double-tap sur les boutons du Mode table
-        { const st = document.createElement('style'); st.textContent = '#mtBox button,#mtPick button,#mtBox [data-mt]{touch-action:manipulation;-webkit-tap-highlight-color:transparent}#mtBox [data-rg="grid"]{contain:layout style}'; document.head.appendChild(st); }
+        // tactile : pas de délai de double-tap ; mode clair : on inverse l'écran puis on ré-inverse les couleurs d'action (elles restent les tiennes)
+        { const st = document.createElement('style'); st.textContent = '#mtBox button,#mtPick button,#mtBox [data-mt]{touch-action:manipulation;-webkit-tap-highlight-color:transparent}#mtBox [data-rg="grid"]{contain:layout style}'
+            + '.mtLight{filter:invert(1) hue-rotate(180deg)}.mtLight [style*="background"]{filter:invert(1) hue-rotate(180deg)}.mtLight [style*="background"] [style*="background"]{filter:none}'; document.head.appendChild(st); }
 
         // --- choix d'un adversaire (panneau tactile) ---
         let _mtIx = null;
@@ -8292,18 +8358,29 @@
             ov.className = 'fixed inset-0 z-[90] bg-black/70 flex items-end sm:items-center justify-center p-2'; mtPk = { k, tab: 'pl', q: '', focus: true }; mtPickRender();
         }
         function mtClosePick() { const ov = document.getElementById('mtPick'); if (ov) ov.remove(); mtPk = null; }
-        function mtSet(k, tg) { MT.tg[k] = tg; if (tg !== 'f') MT.rec = [tg, ...MT.rec.filter(t => t !== tg)].slice(0, 8); mtCell = null; mtSave(); mtClosePick(); renderMt(); }
+        function mtSet(k, tg) { mtPush(); MT.tg[k] = tg; if (tg !== 'f') MT.rec = [tg, ...MT.rec.filter(t => t !== tg)].slice(0, 8); mtCell = null; mtSave(); mtClosePick(); renderMt(); }
 
         // --- actions (délégation : aucun pseudo dans le code des boutons, donc pas de souci d'apostrophes) ---
         document.addEventListener('click', e => {
             const b = e.target.closest('[data-mt]'); if (!b) return; const a = b.dataset.mt, k = +b.dataset.k;
+            const pushed = ['btn', 'next', 'fmt', 'st', 'all', 'step', 'sit', 'fload'].includes(a) && mtPush();
+            if (a === 'back') { const x = mtHist.pop(); if (x) { mtApply(x); mtNoteEd = false; mtSave(); renderMt(); } return; }
+            if (a === 'fopen') { mtFavOpen = !mtFavOpen; renderMt(); return; }
+            if (a === 'fsave') { const L = mtLast; if (!L || !L.s) return; MT.favS = MT.favS || []; const i = mtFavIdx(); if (i >= 0) MT.favS.splice(i, 1); else MT.favS.unshift({ ...mtSnap(), name: mtFavName(L.R, L.s, playerSelect.value), nk: mtNK(L.R, L.s) }); MT.favS = MT.favS.slice(0, 40); mtSave(); renderMt(); return; }
+            if (a === 'fload') { const f = (MT.favS || [])[+b.dataset.i]; if (f) { mtApply(f); mtFavOpen = false; mtNoteEd = false; mtSave(); renderMt(); } return; }
+            if (a === 'fdel') { (MT.favS || []).splice(+b.dataset.i, 1); mtSave(); renderMt(); return; }
+            if (a === 'nedit') { mtNoteEd = !mtNoteEd; renderMt(); if (mtNoteEd) setTimeout(() => document.getElementById('mtNoteTa')?.focus(), 30); return; }
+            if (a === 'nsave') { const L = mtLast, ta = document.getElementById('mtNoteTa'); if (L && L.s && ta) { MT.notes = MT.notes || {}; const v = ta.value.trim(), key = mtNK(L.R, L.s); if (v) MT.notes[key] = v; else delete MT.notes[key]; } mtNoteEd = false; mtSave(); renderMt(); return; }
+            if (a === 'cmp') { const canF = [1, 2].slice(0, mtN() - 1).some(i => MT.tg[i] && MT.tg[i] !== 'f' && MT.tg[i] !== 'g'); MT.cmp = !MT.cmp ? 'g' : MT.cmp === 'g' && canF ? 'f' : ''; mtSave(); renderMt(); return; }
+            if (a === 'big') { MT.big = !MT.big; mtSave(); renderMt(); return; }
+            if (a === 'light') { MT.light = !MT.light; mtSave(); renderMt(); return; }
             if (a === 'cell') { mtCell = +b.dataset.i; mtRgDirty('grid', 'info'); const s = mtLast && mtLast.s; if (s) { document.querySelectorAll('#mtBox [data-mt=cell].ring-2').forEach(x => x.classList.remove('ring-2', 'ring-white', 'z-10')); b.classList.add('ring-2', 'ring-white', 'z-10'); const inf = document.getElementById('mtInfo'); if (inf) inf.innerHTML = mtVilInfo(s) ?? mtCellInfo(s); } return; }
             if (a === 'btn') { MT.btn = k; }
             else if (a === 'next') { MT.btn = (MT.btn + 1) % mtN(); }
             else if (a === 'fmt') { MT.fmt = b.dataset.v === 'HU' ? 'HU' : '3'; MT.btn = Math.min(MT.btn, mtN() - 1); }
             else if (a === 'st') { MT.st[k] = mtQ(mtQ(MT.st[k]) + +b.dataset.d); mtSave(); mtSoon(); return; }
             else if (a === 'all') { for (let i = 0; i < 3; i++) MT.st[i] = +b.dataset.v; }
-            else if (a === 'step') { const L = mtLast; if (!L || !L.s || !L.s.path) return; const x = mtPickStep(L.R.S, L.s, +b.dataset.r, b.dataset.key); if (!x || x === L.s) return; MT.sit = x.id; mtCell = null; }
+            else if (a === 'step') { const L = mtLast; if (!L || !L.s || !L.s.path) return; const x = mtPickStep(L.R.S, L.s, +b.dataset.r, b.dataset.key); if (!x || x === L.s) { if (pushed) mtHist.pop(); return; } MT.sit = x.id; mtCell = null; mtNoteEd = false; }
             else if (a === 'sit') { const s = mtLast && mtLast.R.S[+b.dataset.i]; if (s) MT.sit = s.id; mtCell = null; }
             else if (a === 'fs') { mtFs = !mtFs; _mtRg = null; try { if (mtFs) document.documentElement.requestFullscreen?.(); else if (document.fullscreenElement) document.exitFullscreen?.(); } catch (x) { } }
             else if (a === 'pick') { mtOpenPick(k); return; }
@@ -8322,12 +8399,16 @@
 
         // --- accès directs ---
         function mtOpenWith(tg) { if (!MT.tg.slice(1, mtN()).includes(tg)) { MT.tg[1] = tg; MT.rec = [tg, ...MT.rec.filter(t => t !== tg)].slice(0, 8); } mtCell = null; mtSave(); showTab('mtab'); }
-        function mtFromHand(h) {
-            h = h || (rp && rp.h); const hero = playerSelect.value; if (!h || !h.players.includes(hero) || h.players.length < 2 || h.players.length > 3) return; const so = trSeatOrder(h), bb = bbOf(h) || 20, st = p => mtQ(h.stacks[p] / bb);
+        function mtFromHandId(id, k) { const h = allParsedHands.find(x => x.id === id); if (h) mtFromHand(h, k); }
+        function mtFromHand(h, kd) {
+            h = h || (rp && rp.h); const hero = playerSelect.value; mtPush(); if (!h || !h.players.includes(hero) || h.players.length < 2 || h.players.length > 3) return; const so = trSeatOrder(h), bb = bbOf(h) || 20, st = p => mtQ(h.stacks[p] / bb);
             if (h.players.length === 2) { const opp = h.players.find(p => p !== hero); MT.fmt = 'HU'; MT.btn = so.sb === hero ? 0 : 1; MT.st = [st(hero), st(opp), MT.st[2]]; MT.tg = ['me', 'p:' + opp, MT.tg[2] || 'f']; }
             else { const ord = [so.btn, so.sb, so.bb], mi = ord.indexOf(hero); if (mi < 0 || ord.some(p => !p)) return; MT.fmt = '3'; MT.btn = (3 - mi) % 3; const P = [0, 1, 2].map(k => ord[(mi + k) % 3]); MT.st = P.map(st); MT.tg = ['me', 'p:' + P[1], 'p:' + P[2]]; }
             MT.tg.slice(1).forEach(t => { if (t && t.startsWith('p:')) MT.rec = [t, ...MT.rec.filter(x => x !== t)].slice(0, 8); });
-            MT.sit = null; mtCell = null; mtSave(); try { rpClose(); } catch (e) { } showTab('mtab');
+            MT.sit = null; mtCell = null;
+            // la décision de la main : on ouvre directement ce spot, ta main sélectionnée
+            try { const sp = typeof pfSpotOf === 'function' ? pfSpotOf(h, hero, kd || 0) : null; if (sp && sp.pfx) { const sit = sp.pfx.sit; MT.sit = h.players.length === 2 ? 'pf:h' + sit : PF_SIT[sit] && PF_SIT[sit].fmt === '3M' ? 'pf:t' + sit : 'pf:b' + sit; mtCell = sp.ci; } } catch (e) { console.error('mtFromHand', e); }
+            mtSave(); try { rpClose(); } catch (e) { } showTab('mtab');
         }
         { const _rr66 = renderReplay; renderReplay = function () { _rr66.apply(this, arguments); try { if (!rp || document.getElementById('rpMT') || rp.h.players.length < 2 || rp.h.players.length > 3) return; const b = document.querySelector('#rp-body button[onclick="rpGo(999)"]'); if (b) b.insertAdjacentHTML('afterend', ' <button id="rpMT" onclick="mtFromHand()" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold">📱 Mode table sur cette main</button>'); } catch (e) { } }; }
         { const _ps66 = plSynthUI; plSynthUI = function (hero) { _ps66.apply(this, arguments); try { const syn = document.getElementById('plSyn'); if (!syn || !pl.tgt || document.getElementById('plMT')) return; const tg = pl.tgt.startsWith('p:') || pl.tgt.startsWith('a:') ? pl.tgt : null; if (!tg) return;
@@ -8498,7 +8579,7 @@
                     const heat = g.e1 / g.n > .25 || g.lF / g.n > .05 ? 'text-rose-300' : g.e1 / g.n > .12 ? 'text-amber-300' : 'text-emerald-300';
                     return `<tr class="border-t border-white/5 align-top"><td class="py-1.5 pr-3 text-slate-200">${esc(g.label)}</td><td class="pr-3 text-slate-400">${XB_LAB[g.b]}</td><td class="pr-3">${g.n}</td><td class="pr-3 text-white">${fm(g.me)}</td><td class="pr-3 text-slate-300">${fm(g.th)}</td><td class="pr-3 text-slate-300">${fm(g.fb)}</td>
                         <td class="pr-3 ${heat}">${g.e1} (${Math.round(100 * g.e1 / g.n)} %) · ≈ ${(g.l1 / g.n).toFixed(2).replace('.', ',')} BB/déc.</td><td class="pr-3 ${g.lF / g.n > .05 ? 'text-rose-300' : 'text-slate-300'}">${g.eF} · ${(g.lF / g.n).toFixed(2).replace('.', ',')} BB/déc.
-                        ${g.ex.length ? `<details><summary class="text-indigo-300 cursor-pointer py-1">voir les mains</summary>${g.ex.sort((a, b) => (b.pfx.lossF + b.pfx.loss1) - (a.pfx.lossF + a.pfx.loss1)).slice(0, 8).map(s => `<button onclick="pfOpenHand('${esc(s.h.id)}')" class="block text-left hover:text-white">${cardsH(s.hole)} ${s.S.toFixed(1)} BB · toi ${L(s.act)} · charte ${L(s.pfx.aS)} · field ${L(s.pfx.best)}</button>`).join('')}</details>` : ''}</td></tr>`; }).join('') + '</tbody></table>';
+                        ${g.ex.length ? `<details><summary class="text-indigo-300 cursor-pointer py-1">voir les mains</summary>${g.ex.sort((a, b) => (b.pfx.lossF + b.pfx.loss1) - (a.pfx.lossF + a.pfx.loss1)).slice(0, 8).map(s => `<div class="flex items-center gap-2"><button onclick="pfOpenHand('${esc(s.h.id)}')" class="text-left hover:text-white">${cardsH(s.hole)} ${s.S.toFixed(1)} BB · toi ${L(s.act)} · charte ${L(s.pfx.aS)} · field ${L(s.pfx.best)}</button><button onclick="mtFromHandId('${esc(s.h.id)}',${s.pfx.k || 0})" title="Ouvrir ce spot dans le Mode table" class="px-2 py-1 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-white text-[11px] font-bold">📱 Table</button></div>`).join('')}</details>` : ''}</td></tr>`; }).join('') + '</tbody></table>';
         }
         function pfOpenHand(id) { const h = allParsedHands.find(x => x.id === id); if (h) startReplay(h); }
         { const _rl68 = renderLeaks; renderLeaks = function (hero) { const r = _rl68.apply(this, arguments); try { const tab = document.getElementById('tab-leaks'); if (!tab) return r; let el = document.getElementById('pfLeaks');
