@@ -8053,7 +8053,9 @@
         // --- 66. MODE TABLE (tablette) : sièges physiques, bouton déplaçable, stacks rapides, situation, grille 13×13 contre un adversaire précis ---
         // S'appuie sur le moteur du Simulateur (simDecisions, sbLine) : mêmes fréquences, même best response, même incertitude.
         let MT = { fmt: '3', btn: 0, st: [10, 10, 10], tg: ['me', 'f', 'f'], sit: null, rec: [], fav: [], man: {}, favS: [], notes: {}, cmp: '', big: false, light: false };
-        let mtCell = null, mtFs = false, mtLast = null, mtPk = null, mtHist = [], mtNoteEd = false, mtFavOpen = false;
+        let mtCell = null, mtFs = false, mtLast = null, mtPk = null, mtHist = [], mtNoteEd = false, mtFavOpen = false, mtSel = null;
+        // siège dont on modifie le stack (null = tous les sièges ensemble)
+        const mtSelK = () => mtSel != null && mtSel < mtN() ? mtSel : null;
         // historique (bouton Retour) : l'état de la table avant chaque changement
         const mtSnap = () => ({ fmt: MT.fmt, btn: MT.btn, st: MT.st.slice(), tg: MT.tg.slice(), sit: MT.sit, cell: mtCell });
         const mtSame = (a, b) => a && b && a.fmt === b.fmt && a.btn === b.btn && a.sit === b.sit && a.st.join() === b.st.join() && a.tg.join() === b.tg.join();
@@ -8162,11 +8164,13 @@
             const pos = mtPosOf(k), me = k === 0, tg = MT.tg[k] || 'f', isB = k === MT.btn % mtN(), P = me ? null : (() => { try { return buildProfiles()[tg.startsWith('p:') ? tg.slice(2) : '']; } catch (e) { return null; } })();
             let sub = ''; if (!me) { if (tg.startsWith('p:')) { const t = _mtIx && _mtIx.tg[tg.slice(2)]; sub = `${P ? P.n : 0} mains${t && t.length && P && P.n >= 30 ? ' · ' + esc([...new Set(t)].slice(0, 2).join(' / ')) : ''}`; } else if (tg.startsWith('m:')) { const m = MT.man[tg.slice(2)] || {}; sub = `saisie : shove ${m.sh ?? '—'} % · call ${m.ca ?? '—'} %`; } else sub = tg === 'f' ? 'touche pour choisir' : tg === 'g' ? 'joue exactement tes charts' : 'profil'; }
             const pc = pos === 'BTN' ? 'bg-amber-500 text-slate-900' : pos === 'SB' ? 'bg-sky-600 text-white' : 'bg-violet-600 text-white';
-            return `<div class="${mini ? '' : 'absolute -translate-x-1/2 -translate-y-1/2 w-[46%] max-w-[230px] shadow-xl '}rounded-2xl ${me ? 'bg-indigo-950/95 border-indigo-400' : 'bg-slate-900/95 border-white/15'} border-2 p-2"${mini ? '' : ` style="left:${x}%;top:${y}%"`}>
-                <div class="flex items-center justify-between gap-1 mb-1"><span class="text-xs font-black px-2 py-1 rounded-lg ${pc}">${pos}</span>
-                    <button data-mt="btn" data-k="${k}" aria-label="Mettre le bouton ici" class="w-10 h-10 rounded-full text-sm font-black border-2 ${isB ? 'bg-white text-slate-900 border-amber-400 shadow' : 'bg-transparent text-slate-500 border-slate-600 border-dashed'}">D</button></div>
+            const on = mtSelK() === k;
+            return `<div data-mt="sel" data-k="${k}" class="cursor-pointer ${mini ? '' : 'absolute -translate-x-1/2 -translate-y-1/2 w-[46%] max-w-[230px] shadow-xl '}rounded-2xl ${on ? 'bg-slate-900/95 border-yellow-400 ring-4 ring-yellow-400/70' : me ? 'bg-indigo-950/95 border-indigo-400' : 'bg-slate-900/95 border-white/15'} border-2 p-2"${mini ? '' : ` style="left:${x}%;top:${y}%"`}>
+                <div class="flex items-center justify-between gap-1 mb-1"><span class="text-xs font-black px-2 py-1 rounded-lg ${pc}">${pos}</span><span class="flex items-center gap-1.5">
+                    <button data-mt="sel" data-k="${k}" data-tog="1" aria-label="Modifier le stack de ce siège" class="w-10 h-10 rounded-full text-sm font-black border-2 ${on ? 'bg-yellow-400 text-slate-900 border-yellow-300' : 'bg-transparent text-slate-400 border-slate-500'}">M</button>
+                    <button data-mt="btn" data-k="${k}" aria-label="Mettre le bouton ici" class="w-10 h-10 rounded-full text-sm font-black border-2 ${isB ? 'bg-white text-slate-900 border-amber-400 shadow' : 'bg-transparent text-slate-500 border-slate-600 border-dashed'}">D</button></span></div>
                 ${me ? `<div class="text-sm font-bold text-indigo-200 truncate px-1">Moi</div>` : `<button data-mt="pick" data-k="${k}" class="w-full text-left rounded-xl bg-slate-800 active:bg-slate-700 px-2 py-2 min-h-[44px]"><div class="text-sm font-bold text-slate-100 truncate">${esc(mtLab(tg, hero))} <span class="text-slate-400">▾</span></div><div class="text-[11px] text-slate-400 truncate">${sub}</div></button>`}
-                <div class="flex items-center justify-between gap-1 mt-1"><button data-mt="st" data-k="${k}" data-d="-0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">−</button><span class="text-base font-black text-white">${String(mtQ(MT.st[k])).replace('.', ',')}<span class="text-xs text-slate-400"> BB</span></span><button data-mt="st" data-k="${k}" data-d="0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">+</button></div></div>`;
+                <div class="flex items-center justify-between gap-1 mt-1"><button data-mt="st" data-k="${k}" data-d="-0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">−</button><span class="flex items-baseline"><input data-mtin="${k}" type="number" inputmode="decimal" step="0.5" min="1" value="${mtQ(MT.st[k])}" aria-label="Stack ${pos} en BB" class="w-16 bg-transparent text-center text-base font-black text-white rounded-lg py-1 focus:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-yellow-400 [appearance:textfield]"><span class="text-xs text-slate-400">BB</span></span><button data-mt="st" data-k="${k}" data-d="0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">+</button></div></div>`;
         }
         function mtGridHtml(s) {
             if (s.pf) return pfGridHtml(s.pf);
@@ -8206,8 +8210,14 @@
         function mtComputeAlt(hero) { const sv = MT.tg; MT.tg = MT.tg.map((t, i) => i ? 'f' : t); try { const k = mtKey(hero), ref = pfRef(); if (_mtMemo2 && _mtMemo2.k === k && _mtMemo2.ref === ref) return _mtMemo2.R; const R = mtCompute(hero); _mtMemo2 = { k, ref, R }; return R; } finally { MT.tg = sv; } }
         const mtRgDirty = (...ks) => { if (_mtRg) ks.forEach(k => delete _mtRg.h[k]); };
         const mtPts = () => MT.fmt === 'HU' ? [[0, 50, 84], [1, 50, 17]] : [[0, 50, 84], [1, 25, 20], [2, 75, 20]];
-        const mtStkRow = () => `<button data-mt="next" class="px-3 min-h-[48px] rounded-xl text-base font-black bg-amber-500 text-slate-900 active:bg-amber-400">D ➜ Suivant</button>
-                      <span class="text-[11px] uppercase font-bold text-slate-400 ml-1">Stacks</span>${MT_STK.map(v => `<button data-mt="all" data-v="${v}" class="w-10 min-h-[44px] rounded-xl text-base font-bold ${MT.st.slice(0, mtN()).every(x => mtQ(x) === v) ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'}">${v}</button>`).join('')}`;
+        const mtStkRow = () => { const sel = mtSelK(), n = mtN(), eq = MT.st.slice(0, n).every(x => mtQ(x) === mtQ(MT.st[0])), cur = sel == null ? (eq ? mtQ(MT.st[0]) : null) : mtQ(MT.st[sel]);
+            const sb = (k, l) => `<button data-mt="sel" data-k="${k}" class="px-3 min-h-[44px] rounded-xl text-sm font-bold ${(k < 0 ? sel == null : sel === k) ? 'bg-yellow-400 text-slate-900' : 'bg-slate-800 text-slate-200'}">${l}</button>`;
+            const ord = [0, 1, 2].slice(0, n).sort((a, b) => MT_POS.indexOf(mtPosOf(a)) - MT_POS.indexOf(mtPosOf(b)));
+            return `${sel != null ? `<div class="w-full flex flex-wrap items-center gap-1.5"><span class="text-[11px] uppercase font-bold text-yellow-300 mr-1">Modifie :</span>${sb(-1, 'Tous')}${ord.map(k => sb(k, mtPosOf(k) + (k === 0 ? ' (moi)' : ''))).join('')}</div>` : ''}
+                <button data-mt="next" class="px-3 min-h-[48px] rounded-xl text-base font-black bg-amber-500 text-slate-900 active:bg-amber-400">D ➜ Suivant</button>
+                <span class="text-[11px] uppercase font-bold ${sel != null ? 'text-yellow-300' : 'text-slate-400'} ml-1">${sel != null ? 'Stack ' + mtPosOf(sel) : 'Stacks'}</span>${MT_STK.map(v => `<button data-mt="all" data-v="${v}" class="w-10 min-h-[44px] rounded-xl text-base font-bold ${cur === v ? (sel != null ? 'bg-yellow-400 text-slate-900' : 'bg-indigo-600 text-white') : 'bg-slate-800 text-slate-200'}">${v}</button>`).join('')}
+                <input data-mtin="${sel != null ? sel : 'all'}" type="number" inputmode="decimal" step="0.5" min="1" value="${cur ?? ''}" placeholder="BB" aria-label="${sel != null ? 'Stack ' + mtPosOf(sel) + ' exact' : 'Stack de tous les sièges'}" class="w-20 min-h-[44px] rounded-xl bg-slate-950 border ${sel != null ? 'border-yellow-400/70' : 'border-slate-600'} px-2 text-center text-base font-bold text-white">
+                <div class="w-full text-[11px] ${sel != null ? 'text-yellow-200/80' : 'text-slate-500'}">${sel != null ? `Les boutons ne changent que le stack ${sel === 0 ? 'de ton siège (' + mtPosOf(sel) + ')' : 'de la ' + mtPosOf(sel)}. « Tous » pour régler les sièges ensemble.` : 'Les boutons règlent tous les sièges. Touche un siège (ou son M) pour régler un seul stack.'}</div>`; };
         // mise à jour en place : on garde les éléments, on ne change que leurs attributs et leurs textes
         function mtMorph(el, html) { const T = document.createElement('template'); T.innerHTML = html; mtKids(el, T.content); }
         function mtKids(a, b) { const A = a.childNodes, B = b.childNodes; if (A.length !== B.length) { a.replaceChildren(...Array.from(B)); return; } for (let i = B.length - 1; i >= 0; i--) mtNode(A[i], B[i]); }
@@ -8215,6 +8225,7 @@
             if (x.nodeType !== 1) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; return; }
             for (const at of Array.from(x.attributes)) if (!y.hasAttribute(at.name)) x.removeAttribute(at.name);
             for (const at of Array.from(y.attributes)) if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value);
+            if (x.tagName === 'INPUT' && document.activeElement !== x && x.value !== (y.getAttribute('value') || '')) x.value = y.getAttribute('value') || '';
             if (x.tagName === 'TEXTAREA') return; mtKids(x, y); }
         function mtPatch(el, Z, skel) {
             if (!_mtRg || _mtRg.skel !== skel || !el.querySelector('[data-rg]')) {
@@ -8303,6 +8314,15 @@
             mtPts().forEach(([k, x, y]) => Z['seat' + k] = mtSeatHtml(k, hero, x, y, MT.big));
             mtPatch(el, Z, [mtFs ? 1 : 0, MT.fmt, MT.big ? 1 : 0, MT.light ? 1 : 0].join('|'));
         }
+        // sélection d'un siège : seuls les sièges et la rangée des stacks changent (aucun calcul)
+        function mtSeatsOnly() { const el = document.getElementById('mtBox'), hero = playerSelect.value; if (!el || !hero || !_mtRg || !el.querySelector('[data-rg]')) { renderMt(); return; }
+            const Z = { stk: mtStkRow() }; mtPts().forEach(([k, x, y]) => Z['seat' + k] = mtSeatHtml(k, hero, x, y, MT.big));
+            for (const k of Object.keys(Z)) { if (_mtRg.h[k] === Z[k]) continue; const n = el.querySelector(`[data-rg="${k}"]`); if (n) mtMorph(n, Z[k]); _mtRg.h[k] = Z[k]; } }
+        // saisie exacte au clavier (siège ou rangée)
+        document.addEventListener('change', e => { const t = e.target.closest && e.target.closest('[data-mtin]'); if (!t || !document.getElementById('mtBox')?.contains(t)) return;
+            const v = parseFloat(String(t.value).replace(',', '.')); if (!(v > 0)) { mtSeatsOnly(); return; } const q = mtQ(Math.min(200, Math.max(.5, v))); mtPush();
+            if (t.dataset.mtin === 'all') for (let i = 0; i < 3; i++) MT.st[i] = q; else MT.st[+t.dataset.mtin] = q; t.blur(); mtSave(); renderMt(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.closest && e.target.closest('[data-mtin]')) e.target.blur(); });
         // tap sur un stack : le chiffre change tout de suite, le calcul part quand tu arrêtes de taper (≈ 0,2 s)
         function mtSoon() { const el = document.getElementById('mtBox'), hero = playerSelect.value; if (!el || !hero || !_mtRg || !el.querySelector('[data-rg]')) { renderMt(); return; }
             const Z = { stk: mtStkRow() }; mtPts().forEach(([k, x, y]) => Z['seat' + k] = mtSeatHtml(k, hero, x, y, MT.big));
@@ -8364,6 +8384,8 @@
         document.addEventListener('click', e => {
             const b = e.target.closest('[data-mt]'); if (!b) return; const a = b.dataset.mt, k = +b.dataset.k;
             const pushed = ['btn', 'next', 'fmt', 'st', 'all', 'step', 'sit', 'fload'].includes(a) && mtPush();
+            if (a === 'sel') { const kk = +b.dataset.k; if (e.target.closest('input')) { if (mtSel !== kk) { mtSel = kk; mtSeatsOnly(); } return; }
+                mtSel = kk < 0 ? null : b.dataset.tog && mtSel === kk ? null : kk; mtSeatsOnly(); return; }
             if (a === 'back') { const x = mtHist.pop(); if (x) { mtApply(x); mtNoteEd = false; mtSave(); renderMt(); } return; }
             if (a === 'fopen') { mtFavOpen = !mtFavOpen; renderMt(); return; }
             if (a === 'fsave') { const L = mtLast; if (!L || !L.s) return; MT.favS = MT.favS || []; const i = mtFavIdx(); if (i >= 0) MT.favS.splice(i, 1); else MT.favS.unshift({ ...mtSnap(), name: mtFavName(L.R, L.s, playerSelect.value), nk: mtNK(L.R, L.s) }); MT.favS = MT.favS.slice(0, 40); mtSave(); renderMt(); return; }
@@ -8377,9 +8399,9 @@
             if (a === 'cell') { mtCell = +b.dataset.i; mtRgDirty('grid', 'info'); const s = mtLast && mtLast.s; if (s) { document.querySelectorAll('#mtBox [data-mt=cell].ring-2').forEach(x => x.classList.remove('ring-2', 'ring-white', 'z-10')); b.classList.add('ring-2', 'ring-white', 'z-10'); const inf = document.getElementById('mtInfo'); if (inf) inf.innerHTML = mtVilInfo(s) ?? mtCellInfo(s); } return; }
             if (a === 'btn') { MT.btn = k; }
             else if (a === 'next') { MT.btn = (MT.btn + 1) % mtN(); }
-            else if (a === 'fmt') { MT.fmt = b.dataset.v === 'HU' ? 'HU' : '3'; MT.btn = Math.min(MT.btn, mtN() - 1); }
+            else if (a === 'fmt') { MT.fmt = b.dataset.v === 'HU' ? 'HU' : '3'; MT.btn = Math.min(MT.btn, mtN() - 1); if (mtSel != null && mtSel >= mtN()) mtSel = null; }
             else if (a === 'st') { MT.st[k] = mtQ(mtQ(MT.st[k]) + +b.dataset.d); mtSave(); mtSoon(); return; }
-            else if (a === 'all') { for (let i = 0; i < 3; i++) MT.st[i] = +b.dataset.v; }
+            else if (a === 'all') { const sel = mtSelK(); if (sel != null) MT.st[sel] = +b.dataset.v; else for (let i = 0; i < 3; i++) MT.st[i] = +b.dataset.v; }
             else if (a === 'step') { const L = mtLast; if (!L || !L.s || !L.s.path) return; const x = mtPickStep(L.R.S, L.s, +b.dataset.r, b.dataset.key); if (!x || x === L.s) { if (pushed) mtHist.pop(); return; } MT.sit = x.id; mtCell = null; mtNoteEd = false; }
             else if (a === 'sit') { const s = mtLast && mtLast.R.S[+b.dataset.i]; if (s) MT.sit = s.id; mtCell = null; }
             else if (a === 'fs') { mtFs = !mtFs; _mtRg = null; try { if (mtFs) document.documentElement.requestFullscreen?.(); else if (document.fullscreenElement) document.exitFullscreen?.(); } catch (x) { } }
