@@ -4478,7 +4478,7 @@
                 <div class="text-xs font-bold text-slate-300 mb-1">Dernières décisions</div><div class="max-h-56 overflow-auto custom-scrollbar border border-white/10 rounded-lg">${recent.map(h => `<div class="flex flex-wrap gap-3 px-3 py-1 text-xs border-b border-white/5"><span class="${h.ok ? 'text-emerald-400' : 'text-rose-400'}">${h.ok ? '✓' : '✗'}</span><span class="w-12 font-bold text-slate-200">${h.hand}</span><span class="text-slate-400 flex-1 min-w-[12rem]">${esc(h.title)}</span><span>toi : <b>${h.choice}</b></span><span>reco : <b>${h.best}</b></span>${h.adapt ? `<span class="text-amber-300">adaptation ${h.followed ? 'appliquée' : 'manquée'}</span>` : ''}${h.ok ? '' : `<span class="text-rose-300">−${String(h.loss.toFixed(2)).replace('.', ',')} BB</span>`}</div>`).join('')}</div>` : '<p class="text-xs text-slate-500">Joue des spots en mode Coach : tes décisions s\'enregistrent ici, par scénario, avec la part des adaptations que tu appliques vraiment.</p>'}</div>`;
             box.innerHTML = scen + sweep + hist;
         }
-        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
+        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
         async function bkRestore(x, merge) {
             for (const k of Object.keys(x || {})) { let v = x[k]; try { const cur = await localforage.getItem(k);
                 if (merge && Array.isArray(cur) && Array.isArray(v)) v = k === 'sim_scen' ? [...cur.filter(c => !v.some(n => n.name === c.name)), ...v] : [...cur, ...v.filter(n => !cur.some(c => c.ts === n.ts && c.hand === n.hand))].sort((a, b) => a.ts - b.ts);
@@ -8879,6 +8879,328 @@
         document.addEventListener('click', e => { const b = e.target.closest('[data-ac]'); if (!b) return; const a = b.dataset.ac;
             if (a === 'open') acOpen(); else if (a === 'close') { const ov = document.getElementById('acPanel'); if (ov) ov.remove(); }
             else if (a === 'pre') { AC = { pre: b.dataset.v, c: { ...AC_PRE[b.dataset.v][1] } }; acSave(); } });
+
+        // ===================== 80. TEXTURES DE FLOP (8 familles, façon GTO Wizard) =====================
+        // Chaque flop tombe dans UNE famille. Fréquences observées sur les mains jouées, sans estimation de main.
+        // Référence GTO : 1) les fichiers solver déjà chargés (onglet GTO postflop), calculés sur les flops réellement joués ;
+        // 2) à défaut, les valeurs saisies ou importées en CSV par famille et par spot.
+        const TXFAM = [
+            { k: 'mono', l: 'Monotone', d: 'Trois cartes de la même couleur.', ex: ['As8s3s', 'Th7h2h'] },
+            { k: 'ph', l: 'Paire haute', d: 'Flop pairé, paire de T ou plus (brelan compris).', ex: ['KsKd5c', 'ThTc2d'] },
+            { k: 'pb', l: 'Paire basse', d: 'Flop pairé, paire de 9 ou moins (brelan compris).', ex: ['7s7d2c', '5h5c4d'] },
+            { k: 'as', l: 'As sec', d: 'As en carte haute, non pairé, trois couleurs, cartes éloignées.', ex: ['As7d2c', 'Ah9c4d'] },
+            { k: 'ad', l: 'As dynamique', d: 'As en carte haute, non pairé, avec deux cartes de la même couleur ou des cartes connectées.', ex: ['AsKdQc', 'Ah8h3c', 'Ad5c4s'] },
+            { k: 'bs', l: 'K / Q / J sec', d: 'K, Q ou J en carte haute, non pairé, trois couleurs, cartes éloignées.', ex: ['Ks7d2c', 'Qh6c3d'] },
+            { k: 'bd', l: 'K / Q / J dynamique', d: 'K, Q ou J en carte haute, non pairé, avec deux cartes de la même couleur ou des cartes connectées.', ex: ['KsQdJc', 'Qh9h4c', 'JdTc8s'] },
+            { k: 'mb', l: 'T et moins', d: 'Carte haute T ou moins, non pairé, sans couleur unique.', ex: ['Ts6d2c', '9h8h7c', '6d4c3s'] },
+        ];
+        const TXFK = Object.fromEntries(TXFAM.map(f => [f.k, f]));
+        const TX_RK = '23456789TJQKA';
+        // « connecté » : écart de 4 rangs au plus entre la plus haute et la plus basse, ou roue (A avec deux cartes ≤ 5)
+        function txFamOf3(cs) {
+            const r = cs.map(c => TX_RK.indexOf(c[0])).sort((x, y) => y - x), ns = new Set(cs.map(c => c[1])).size;
+            if (r.some(x => x < 0)) return null;
+            if (ns === 1) return 'mono';
+            if (new Set(r).size < 3) return r[1] >= 8 ? 'ph' : 'pb';
+            const conn = r[0] - r[2] <= 4 || (r[0] === 12 && r[1] <= 3), dyn = ns === 2 || conn;
+            if (r[0] === 12) return dyn ? 'ad' : 'as';
+            if (r[0] >= 9) return dyn ? 'bd' : 'bs';
+            return 'mb';
+        }
+        // part théorique de chaque famille parmi les 22 100 flops possibles (pour juger si l'échantillon est représentatif)
+        let _txTh = null;
+        function txTheo() {
+            if (_txTh) return _txTh; const D = []; for (const r of TX_RK) for (const s of 'cdhs') D.push(r + s);
+            const o = {}; let n = 0; for (let i = 0; i < 52; i++) for (let j = i + 1; j < 52; j++) for (let k = j + 1; k < 52; k++) { const f = txFamOf3([D[i], D[j], D[k]]); o[f] = (o[f] || 0) + 1; n++; }
+            for (const f in o) o[f] /= n; return _txTh = o;
+        }
+
+        // ---- Réglages (enregistrés) ----
+        const TX = { who: 'me', player: '', flop: '3M2', role: 'A', pos: 'all', dep: 'all', ref: 'field', fam: 'mono', gto: {} };
+        try { localforage.getItem('tx_cfg').then(v => { if (v && typeof v === 'object') Object.assign(TX, v, { gto: v.gto || {} }); }); } catch (e) { }
+        const txSave = () => { try { localforage.setItem('tx_cfg', TX); } catch (e) { } };
+
+        // ---- Métriques ----
+        // o = clé d'occasion, hit = ce qui compte comme « oui » ; g = groupe d'actions solver correspondant
+        const TX_M = {
+            cb: { l: 'C-bet', d: 'Mise le flop quand personne n\'a misé avant lui, après avoir relancé préflop', g: 'agg' },
+            cbt: { l: '2e barrel', d: 'Remise au turn après un c-bet payé, quand personne n\'a misé avant lui', g: 'agg' },
+            fcr: { l: 'Fold vs relance', d: 'Se couche quand son c-bet est relancé', g: 'fold' },
+            fcb: { l: 'Fold vs c-bet', d: 'Se couche face au c-bet (première réponse)', g: 'fold' },
+            rcb: { l: 'Relance vs c-bet', d: 'Relance le c-bet (tapis compris)', g: 'agg' },
+            xr: { l: 'Check-raise', d: 'Check, puis relance la mise qui suit', g: 'agg' },
+            dk: { l: 'Donk', d: 'Mise devant le relanceur préflop', g: 'agg' },
+            st: { l: 'Mise si check', d: 'Mise quand le relanceur préflop a checké avant lui', g: 'agg' },
+            lb: { l: 'Mise', d: 'Pot limpé : mise quand personne n\'a misé avant lui', g: 'agg' },
+            lf: { l: 'Fold vs mise', d: 'Pot limpé : se couche face à la première mise', g: 'fold' },
+            lr: { l: 'Relance vs mise', d: 'Pot limpé : relance la première mise (tapis compris)', g: 'agg' },
+        };
+        const TX_COLS = { A: ['cb', 'cbt', 'fcr'], C: ['fcb', 'rcb', 'xr', 'dk', 'st'], L: ['lb', 'lf', 'lr', 'xr'] };
+        const TX_ROLE = { A: 'Relanceur préflop', C: 'Payeur préflop', L: 'Pot limpé' };
+        const TX_FLOP = { '3M2': '3-max · flop à 2', '3M3': '3-max · flop à 3', HU: 'Heads-up', all: 'Tous' };
+        // barres de stratégie : action quand personne n'a misé (F) ou face à la première mise (V)
+        const TX_BF = [['x', 'Check'], ['s0', 'Petite < 40 %'], ['s1', 'Moyenne 40-70 %'], ['s2', 'Grosse > 70 %'], ['s3', 'Tapis']];
+        const TX_BV = [['f', 'Fold'], ['c', 'Call'], ['r', 'Relance']];
+        const txBarCol = k => ({ x: ac('check'), s0: acShade(ac('shove'), .5), s1: acShade(ac('shove'), .22), s2: ac('shove'), s3: acShade(ac('shove'), -.4), f: ac('fold'), c: ac('call'), r: ac('raise') })[k];
+        const txSzc = (amt, pot, all) => all ? 4 : amt < .4 * pot ? 1 : amt <= .7 * pot ? 2 : 3;
+
+        // ---- Lecture d'une main : un enregistrement par joueur qui voit le flop ----
+        const _txH = new WeakMap(); let _txGv = '';
+        const txGv = () => { try { return Object.keys(gpImported).length + ':' + (typeof GP_POST === 'object' ? Object.keys(GP_POST).length : 0); } catch (e) { return '0'; } };
+        function txHand(h) {
+            const c = _txH.get(h); if (c && c.v === _txGv) return c.r;
+            let r = null; try { r = txHand0(h); } catch (e) { r = null; }
+            _txH.set(h, { v: _txGv, r }); return r;
+        }
+        const TX_RE = /^(.+?) (folds|checks|calls|bets|raises)(?: (\d+))?(?: to (\d+))?( and is all-in)?/;
+        function txHand0(h) {
+            const n = h.players.length; if ((n !== 2 && n !== 3) || h.buyin === 0) return null;
+            const bd = (h.board || '').split(' ').filter(Boolean); if (bd.length < 3 || !(h.flop && h.flop.length)) return null;
+            const fam = txFamOf3(bd.slice(0, 3)); if (!fam) return null;
+            const bb = bbOf(h); if (!bb) return null; const st = trSeatOrder(h);
+            const pre = (h.preflop || []).map(l => { const m = l.match(TX_RE); return m ? { p: m[1], k: m[2], a: +(m[3] || 0), to: +(m[4] || 0), all: !!m[5] } : null; }).filter(Boolean);
+            if (pre.some(x => x.all)) return null;
+            const inv = {}; h.players.forEach(p => inv[p] = 0);
+            (h.blinds || []).forEach(l => { const m = l.match(/^(.+?) posts (?:small blind|big blind|ante) (\d+)/); if (m && m[1] in inv) inv[m[1]] += +m[2]; });
+            let agg = null; const fold = new Set();
+            pre.forEach(x => { if (x.k === 'folds') fold.add(x.p); else if (x.k === 'calls' || x.k === 'bets') inv[x.p] += x.a; else if (x.k === 'raises') { inv[x.p] = x.to; agg = x.p; } if (x.k === 'bets') agg = x.p; });
+            // les blinds postées sont comptées au départ ; « raises X to Y » remplace la mise du tour (Y inclut la blind)
+            const pot0 = Object.values(inv).reduce((s, v) => s + v, 0) / bb;
+            const ord = (n === 3 ? [st.sb, st.bb, st.btn] : [st.bb, st.sb]).filter(p => p && !fold.has(p)); if (ord.length < 2) return null;
+            const posOf = p => n === 2 ? (p === st.sb ? 'SB' : 'BB') : p === st.btn ? 'BTN' : p === st.sb ? 'SB' : 'BB';
+            const F = ord.length, fmt = n === 2 ? 'HU' : F === 3 ? '3M3' : '3M2', potT = agg ? 'R' : 'L';
+            const eff = Math.min(...ord.map(p => h.stacks[p])) / bb;
+            const P = ls => (ls || []).map(l => { const m = l.match(TX_RE); return m ? { p: m[1], k: m[2], a: +(m[3] || 0) / bb, to: +(m[4] || 0) / bb, all: !!m[5] } : null; }).filter(Boolean);
+            const fl = P(h.flop), tu = P(h.turn);
+            const won = new Set(); [h.showdown, h.summary, h.preflop, h.flop, h.turn, h.river].forEach(ar => (ar || []).forEach(l => { const m = l.match(/^(.+?) collected \d+/); if (m) won.add(m[1]); }));
+            // c-bet du relanceur (première mise du flop, faite par lui)
+            const iFirstBet = fl.findIndex(x => x.k === 'bets'), firstBettor = iFirstBet >= 0 ? fl[iFirstBet].p : null, isCb = agg && firstBettor === agg;
+            const recs = ord.map((p, oi) => {
+                const role = potT === 'L' ? 'L' : p === agg ? 'A' : 'C', R = { h, p, fam, fmt, pot: potT, role, ip: oi === F - 1, pos: posOf(p), eff, m: {}, g: {}, fa: -1, fv: -1, gfa: null, gfv: null, sum: '' };
+                const mine = fl.map((x, i) => [x, i]).filter(([x]) => x.p === p); if (!mine.length) return R;
+                const [a0, i0] = mine[0], free = !fl.slice(0, i0).some(x => x.k === 'bets' || x.k === 'raises');
+                const hit = (k, v) => { R.m[k] = v ? 1 : 0; };
+                if (free) {
+                    const b = a0.k === 'bets'; R.fa = b ? txSzc(a0.a, pot0, a0.all) : 0;
+                    if (role === 'A') hit('cb', b); else if (role === 'L') hit('lb', b);
+                    else { const aggActed = fl.slice(0, i0).some(x => x.p === agg); if (aggActed) hit('st', b); else if (agg) hit('dk', b); }
+                    if (a0.k === 'checks') { const nx = mine.find(([x, i]) => i > i0); if (nx && fl.slice(i0 + 1, nx[1]).some(x => x.k === 'bets' || x.k === 'raises')) hit('xr', nx[0].k === 'raises'); }
+                }
+                // première réponse face à la première mise du tour (faite par un autre, sans relance entre-temps)
+                if (iFirstBet >= 0 && firstBettor !== p) { const rsp = mine.find(([x, i]) => i > iFirstBet);
+                    if (rsp && !fl.slice(iFirstBet + 1, rsp[1]).some(x => x.k === 'raises')) { const k = rsp[0].k, v = k === 'folds' ? 0 : k === 'calls' ? 1 : k === 'raises' ? 2 : -1;
+                        if (v >= 0) { if (role === 'C' && isCb) { R.fv = v; hit('fcb', v === 0); hit('rcb', v === 2); } else if (role === 'L') { R.fv = v; hit('lf', v === 0); hit('lr', v === 2); } } } }
+                // relanceur dont le c-bet est relancé
+                if (role === 'A' && isCb && R.m.cb) { const ir = fl.findIndex((x, i) => i > iFirstBet && x.k === 'raises'); if (ir >= 0) { const rsp = mine.find(([x, i]) => i > ir); if (rsp) hit('fcr', rsp[0].k === 'folds'); } }
+                // 2e barrel : c-bet payé sans relance, le relanceur parle au turn sans mise avant lui
+                if (role === 'A' && R.m.cb && !fl.some(x => x.k === 'raises') && !mine.some(([x]) => x.all) && tu.length) { const j = tu.findIndex(x => x.p === p); if (j >= 0 && !tu.slice(0, j).some(x => x.k === 'bets' || x.k === 'raises')) hit('cbt', tu[j].k === 'bets'); }
+                R.sum = mine.map(([x]) => x.k === 'checks' ? 'check' : x.k === 'folds' ? 'fold' : x.k === 'calls' ? 'call' : x.k === 'bets' ? (x.all ? 'tapis' : 'mise ' + Math.round(100 * x.a / pot0) + ' %') : x.all ? 'relance tapis' : 'relance').join(' → ');
+                const sd = sdPost(h, p, true, false, won); R.sd = sd.saw ? (sd.went ? (sd.won ? 2 : 1) : 0) : -1;
+                try { R.nb = (endStacks(h)[p] - h.stacks[p]) / bb; R.ev = handCEV(h, p) / bb; } catch (e) { R.nb = R.ev = 0; }
+                return R;
+            });
+            txGto(h, recs, pot0);
+            return recs;
+        }
+        // Référence solver : on réutilise la lecture des spots de l'onglet GTO postflop (fichiers intégrés + importés)
+        function txGto(h, recs, pot0) {
+            if (typeof gpEvents !== 'function') return; const evs = gpEvents(h); if (!evs) return; const fi = gpFlop(h); if (fi < 0) return;
+            const AGG = { SRP: 'BTN', LIMP: null, ISO: 'BB', SBR: 'SB', HUISO: 'BB' };
+            evs.forEach(ev => {
+                const R = recs.find(r => r.p === ev.who); if (!R) return; const aggR = ev.tree === '3BP' ? ev.opp : AGG[ev.tree]; if (aggR === undefined) return;
+                const sp = gpResolve(ev); if (!sp) return; const pr = gpProb(sp, fi); let s = 0; pr.forEach(x => s += x); if (s < .5) return;
+                const grp = g => { let t = 0; for (let j = 0; j < sp.n; j++) if (sp.gr[j] === g) t += pr[j]; return t / s; };
+                const put = (k, g) => { if (R.m[k] != null) R.g[k] = grp(g); };
+                const oop = ev.role === ev.opp, isAgg = aggR === ev.role;
+                if (ev.kind === 'first' || ev.kind === 'x') {
+                    put(isAgg ? 'cb' : !aggR ? 'lb' : ev.kind === 'first' ? 'dk' : 'st', 'agg');
+                    if (R.fa >= 0) { const v = [0, 0, 0, 0, 0]; sp.opts.forEach((o, j) => { const q = pr[j] / s; if (o.k === 'check') v[0] += q; else if (o.k === 'allin') v[4] += q; else if (o.k === 'bet') v[txSzc(o.to, pot0, false)] += q; }); R.gfa = v; }
+                } else if (ev.kind === 'bet') {
+                    const bettorAgg = aggR && !isAgg; // la mise vient de l'autre joueur, relanceur préflop
+                    if (bettorAgg || !aggR) { put(aggR ? 'fcb' : 'lf', 'fold'); put(aggR ? 'rcb' : 'lr', 'agg'); if (oop) put('xr', 'agg');
+                        if (R.fv >= 0) R.gfv = [grp('fold'), grp('call'), grp('agg')]; }
+                } else if (ev.kind === 'xr' && isAgg) put('fcr', 'fold');
+            });
+        }
+
+        // ---- Agrégation ----
+        const txNew = () => ({ n: 0, m: {}, g: {}, fa: [0, 0, 0, 0, 0], fv: [0, 0, 0], gfa: [0, 0, 0, 0, 0], gfaN: 0, gfv: [0, 0, 0], gfvN: 0, sd: [0, 0, 0], ev: 0, nb: 0, L: [] });
+        function txPut(A, R, keep) {
+            A.n++; A.ev += R.ev || 0; A.nb += R.nb || 0; if (R.sd >= 0) { A.sd[0]++; if (R.sd >= 1) A.sd[1]++; if (R.sd === 2) A.sd[2]++; }
+            for (const k in R.m) { const o = A.m[k] || (A.m[k] = [0, 0]); o[0]++; o[1] += R.m[k]; }
+            for (const k in R.g) { const o = A.g[k] || (A.g[k] = [0, 0, 0, 0]); const p = R.g[k]; o[0]++; o[1] += R.m[k]; o[2] += p; o[3] += p * (1 - p); }
+            if (R.fa > 0 || R.fa === 0) A.fa[R.fa]++; if (R.fv >= 0) A.fv[R.fv]++;
+            if (R.gfa) { A.gfaN++; R.gfa.forEach((v, i) => A.gfa[i] += v); } if (R.gfv) { A.gfvN++; R.gfv.forEach((v, i) => A.gfv[i] += v); }
+            if (keep) A.L.push(R);
+        }
+        const txSubj = (hero) => { const t = TX.player.trim().toLowerCase(); return TX.who === 'me' ? p => p === hero : TX.who === 'field' ? p => p !== hero : p => !!t && p.toLowerCase() === t; };
+        let _txA = null;
+        function txAgg(hero) {
+            _txGv = txGv();
+            const key = [hero, TX.who, TX.player, TX.flop, TX.pos, _txGv, currentFilteredHands.length, typeof dKey === 'function' ? dKey() : '', buyinSelect.value, dateSelect.value].join('|');
+            if (_txA && _txA.key === key) return _txA;
+            const su = txSubj(hero), t = TX.player.trim().toLowerCase(), refOk = TX.who === 'field' ? null : p => p !== hero && p.toLowerCase() !== t;
+            const SU = {}, RF = {}, cell = (M, r, f) => { const k = r + '|' + f; return M[k] || (M[k] = txNew()); };
+            const okF = R => (TX.flop === 'all' || R.fmt === TX.flop) && (TX.pos === 'all' || (TX.pos === 'ip') === R.ip);
+            let nH = 0;
+            const inF = new Set(currentFilteredHands); (typeof depHands === 'function' ? depHands() : currentFilteredHands).forEach(h => { if (!inF.has(h)) return; const recs = txHand(h); if (!recs) return; let any = false;
+                recs.forEach(R => { if (!okF(R)) return; if (su(R.p)) { any = true; txPut(cell(SU, R.role, R.fam), R, true); txPut(cell(SU, R.role, 'all'), R, false); } else if (refOk && refOk(R.p)) { txPut(cell(RF, R.role, R.fam), R, false); txPut(cell(RF, R.role, 'all'), R, false); } });
+                if (any) nH++; });
+            return _txA = { key, SU, RF, nH };
+        }
+        const txGet = (M, r, f) => M[r + '|' + f] || txNew();
+        const txSpot = () => TX.flop + '|' + TX.role + '|' + TX.pos;
+        // cellule : valeur, échantillon, référence, écart (z)
+        function txCell(D, f, k) {
+            const a = txGet(D.SU, TX.role, f), o = a.m[k] || [0, 0], n = o[0], v = n ? o[1] / n : null;
+            let rv = null, rn = 0, src = '', z = 0;
+            if (TX.ref === 'gto') {
+                const g = a.g[k];
+                if (g && g[0] >= 5) { rv = g[2] / g[0]; rn = g[0]; src = 'solver'; if (g[0] >= 15 && g[3] > .5) z = (g[1] - g[2]) / Math.sqrt(g[3]); }
+                else { const m = ((TX.gto[txSpot()] || {})[f] || {})[k]; if (m != null && m !== '') { rv = +m / 100; rn = 1e6; src = 'saisie'; } }
+            } else if (TX.ref === 'field' && TX.who !== 'field') { const b = txGet(D.RF, TX.role, f).m[k] || [0, 0]; rn = b[0]; rv = rn ? b[1] / rn : null; src = 'field'; }
+            if (v != null && rv != null && src !== 'solver' && n >= 20 && rn >= 50) { const q = Math.min(.97, Math.max(.03, rv)); z = (v - q) / Math.sqrt(q * (1 - q) / n); }
+            const flag = Math.abs(z) >= 2 ? 2 : Math.abs(z) >= 1.5 ? 1 : 0;
+            return { v, n, h: o[1], rv, rn, src, z, flag };
+        }
+        const txPc = v => v == null ? '–' : Math.round(v * 100) + ' %';
+        const txWho = () => TX.who === 'me' ? 'Toi' : TX.who === 'field' ? 'Le field' : (TX.player || 'Joueur');
+        const txRefN = () => TX.ref === 'gto' ? 'GTO' : TX.ref === 'field' && TX.who !== 'field' ? (TX.who === 'me' ? 'Field' : 'Field sans lui') : '';
+
+        // ---- Rendu ----
+        const txSuitC = { s: '#475569', h: '#dc2626', d: '#2563eb', c: '#16a34a' }, txSuitS = { s: '♠', h: '♥', d: '♦', c: '♣' };
+        const txCard = (c, big) => `<span class="inline-flex items-center justify-center rounded-md font-black text-white ${big ? 'w-9 h-11 text-lg' : 'w-7 h-8 text-[13px]'}" style="background:${txSuitC[c[1]] || '#475569'}">${c[0]}<span class="text-[10px] opacity-80">${txSuitS[c[1]] || ''}</span></span>`;
+        const txCards = (s, big) => (s.match(/[2-9TJQKA][cdhs]/g) || []).map(c => txCard(c, big)).join('<span class="inline-block w-0.5"></span>');
+        // barre empilée : segments = parts, texte si la part est assez large
+        function txBar(cnt, keys, h, thin) {
+            const t = cnt.reduce((s, v) => s + v, 0); if (!t) return `<div class="rounded ${h} bg-slate-800/60"></div>`;
+            return `<div class="flex rounded overflow-hidden ${h}">${cnt.map((v, i) => { const p = 100 * v / t; if (p < .5) return ''; const k = keys[i][0];
+                return `<div style="width:${p}%;background:${txBarCol(k)};${k === 'f' ? 'box-shadow:inset 0 0 0 1px rgba(148,163,184,.45);' : ''}color:${acFg(k === 'x' ? 'check' : k === 'f' ? 'fold' : k === 'c' ? 'call' : k === 'r' ? 'raise' : 'shove')}" class="flex items-center justify-center text-[10px] font-bold overflow-hidden whitespace-nowrap" title="${keys[i][1]} : ${Math.round(p)} %">${!thin && p >= 13 ? Math.round(p) : ''}</div>`; }).join('')}</div>`;
+        }
+        const txBarKind = () => TX.role === 'C' ? 'V' : 'F';
+        function txRefBar(D, f) {
+            const kind = txBarKind(), a = txGet(D.SU, TX.role, f);
+            if (TX.ref === 'gto') { const N = kind === 'F' ? a.gfaN : a.gfvN; return N >= 5 ? { cnt: (kind === 'F' ? a.gfa : a.gfv).map(v => v / N), n: N, lab: 'GTO' } : null; }
+            if (TX.ref === 'field' && TX.who !== 'field') { const b = txGet(D.RF, TX.role, f), c = kind === 'F' ? b.fa : b.fv, n = c.reduce((s, v) => s + v, 0); return n >= 20 ? { cnt: c, n, lab: txRefN() } : null; }
+            return null;
+        }
+        function txInsights(D) {
+            const L = [];
+            TXFAM.forEach(f => TX_COLS[TX.role].forEach(k => { const c = txCell(D, f.k, k); if (c.flag === 2 || (c.flag && c.n >= 40)) L.push({ f, k, c }); }));
+            return L.sort((x, y) => Math.abs(y.c.z) - Math.abs(x.c.z)).slice(0, 5);
+        }
+        let _txPl = null;
+        function txPlayers() {
+            const k = currentFilteredHands.length + '|' + dKey(); if (_txPl && _txPl.k === k) return _txPl.v; const c = {};
+            currentFilteredHands.forEach(h => h.players.forEach(p => c[p] = (c[p] || 0) + 1));
+            const hero = playerSelect.value; return (_txPl = { k, v: Object.keys(c).filter(p => p !== hero).sort((a, b) => c[b] - c[a]).slice(0, 400) }).v;
+        }
+
+        function renderTx() {
+            const box = document.getElementById('txBox'); if (!box) return; const hero = playerSelect.value;
+            if (!hero || !allParsedHands.length) { box.innerHTML = '<p class="text-slate-500 text-sm p-4">Importe tes mains et choisis ton pseudo.</p>'; return; }
+            const gOpen = !!(box.querySelector('#txGtoBox') || {}).open;
+            const D = txAgg(hero), cols = TX_COLS[TX.role], kind = txBarKind(), keys = kind === 'F' ? TX_BF : TX_BV, th = txTheo();
+            const chip = (on, a, v, t, tip) => `<button data-tx="${a}" data-v="${v}" ${tip ? `title="${esc(tip)}"` : ''} class="min-h-[44px] px-4 rounded-xl text-sm font-semibold border ${on ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-800 border-white/10 text-slate-300'}">${t}</button>`;
+            const lab = t => `<span class="text-[11px] uppercase tracking-wider text-slate-400 font-bold w-24 shrink-0">${t}</span>`;
+            const all = txGet(D.SU, TX.role, 'all'), refN = txRefN();
+            const barH = kind === 'F' ? 'Action quand personne n\'a misé' : 'Réponse au c-bet';
+            const cellH = (f, k) => { const c = txCell(D, f, k); const ar = c.flag ? `<span class="${c.z > 0 ? 'text-amber-300' : 'text-sky-300'} text-[11px] ml-0.5">${c.z > 0 ? '▲' : '▼'}</span>` : '';
+                return `<td class="px-2 text-center ${c.flag === 2 ? (c.z > 0 ? 'bg-amber-500/15' : 'bg-sky-500/15') : ''}" title="${c.h} sur ${c.n}${c.rv != null ? ` · ${c.src} ${txPc(c.rv)}${c.src === 'solver' ? ' (' + c.rn + ' flops couverts)' : ''}` : ''}"><div class="font-bold text-[15px] ${c.n < 8 ? 'text-slate-500' : 'text-slate-100'}">${c.n >= 5 ? txPc(c.v) : '–'}${ar}</div><div class="text-[10.5px] text-slate-400 whitespace-nowrap">${c.n >= 5 ? c.n + (c.rv != null ? ' · ' + txPc(c.rv) : '') : c.n ? 'peu (' + c.n + ')' : ''}</div></td>`; };
+            const row = (f, fl) => {
+                const a = txGet(D.SU, TX.role, f), cnt = kind === 'F' ? a.fa : a.fv, rb = txRefBar(D, f), sh = all.n ? a.n / all.n : 0, sdv = a.sd[0] >= 5 ? a.sd[1] / a.sd[0] : null, ev = a.n >= 5 ? a.ev / a.n : null, sel = TX.fam === f;
+                return `<tr data-tx="fam" data-v="${f}" class="cursor-pointer border-t border-white/5 ${sel ? 'bg-indigo-500/20 outline outline-2 -outline-offset-2 outline-amber-400' : 'hover:bg-slate-700/30'} ${f === 'all' ? 'bg-slate-800/50' : ''}">
+                  <td class="sticky left-0 z-[1] px-3 py-2 ${sel ? 'bg-[#2a2f55]' : f === 'all' ? 'bg-[#172033]' : 'bg-[#0f172a]'} min-w-[132px]"><div class="font-bold text-[14px] leading-tight text-slate-100">${fl}</div>${f !== 'all' ? `<div class="mt-1 opacity-90">${txCards(TXFK[f].ex[0])}</div>` : ''}</td>
+                  <td class="px-2 text-center"><div class="font-bold text-[15px]">${a.n}</div><div class="text-[10.5px] text-slate-400 whitespace-nowrap">${f === 'all' ? '100 %' : Math.round(100 * sh) + ' % · att. ' + Math.round(100 * th[f]) + ' %'}</div></td>
+                  <td class="px-2 min-w-[140px] w-[20%]">${txBar(cnt, keys, 'h-6')}${rb ? `<div class="mt-1 flex items-center gap-1"><span class="text-[9px] text-slate-400 w-9 shrink-0">${esc(rb.lab)}</span><div class="flex-1">${txBar(rb.cnt, keys, 'h-2', true)}</div></div>` : ''}</td>
+                  ${cols.map(k => cellH(f, k)).join('')}
+                  <td class="px-2 text-center"><div class="font-bold text-[15px]">${sdv == null ? '–' : txPc(sdv)}</div><div class="text-[10.5px] text-slate-400 whitespace-nowrap">${a.sd[1] ? 'gagne ' + txPc(a.sd[2] / a.sd[1]) : ''}</div></td>
+                  <td class="px-2 text-center font-bold text-[15px] ${ev == null ? '' : ev >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${ev == null ? '–' : (ev >= 0 ? '+' : '') + ev.toFixed(2)}</td></tr>`;
+            };
+            const ins = txInsights(D);
+            const legend = keys.map(([k, l]) => `<span class="inline-flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:${txBarCol(k)}"></span>${l}</span>`).join('');
+            const spotTxt = `${TX_FLOP[TX.flop]} · ${TX_ROLE[TX.role]}${TX.pos !== 'all' ? ' · ' + (TX.pos === 'ip' ? 'en position' : 'hors position') : ''}`;
+            const gtoSp = TX.gto[txSpot()] || {};
+            box.innerHTML = `
+            <div class="rounded-2xl bg-slate-900/80 border border-white/10 p-3 space-y-2">
+              <div class="flex flex-wrap items-center gap-2">${lab('Qui')}${chip(TX.who === 'me', 'who', 'me', 'Moi')}${chip(TX.who === 'field', 'who', 'field', 'Le field')}${chip(TX.who === 'player', 'who', 'player', 'Un joueur')}<span class="w-3"></span>${lab('Comparer à')}${chip(TX.ref === 'field', 'ref', 'field', 'Le field')}${chip(TX.ref === 'gto', 'ref', 'gto', 'GTO')}${chip(TX.ref === 'none', 'ref', 'none', 'Rien')}
+                ${TX.who === 'player' ? `<input id="txPl" list="txPlL" value="${esc(TX.player)}" placeholder="Pseudo du joueur" autocomplete="off" class="min-h-[44px] px-3 rounded-xl bg-slate-800 border border-white/10 text-[15px] min-w-[220px]"><datalist id="txPlL">${txPlayers().map(p => `<option value="${esc(p)}">`).join('')}</datalist>` : ''}</div>
+              <div class="flex flex-wrap items-center gap-2">${lab('Flop')}${['3M2', '3M3', 'HU', 'all'].map(v => chip(TX.flop === v, 'flop', v, TX_FLOP[v])).join('')}</div>
+              <div class="flex flex-wrap items-center gap-2">${lab('Rôle')}${chip(TX.role === 'A', 'role', 'A', 'J\'ai relancé', 'Pot relancé, tu es le dernier relanceur préflop')}${chip(TX.role === 'C', 'role', 'C', 'J\'ai payé', 'Pot relancé, tu as payé la relance')}${chip(TX.role === 'L', 'role', 'L', 'Pot limpé', 'Personne n\'a relancé préflop')}
+                <span class="w-3"></span>${chip(TX.pos === 'all', 'pos', 'all', 'Toutes')}${chip(TX.pos === 'ip', 'pos', 'ip', 'En position', 'Dernier à parler au flop')}${chip(TX.pos === 'oop', 'pos', 'oop', 'Hors position')}</div>
+
+              <div class="text-xs text-slate-400">${all.n} flops pour ${esc(txWho())} dans ce spot · ${D.nH} mains (filtres du haut, profondeur comprise)</div>
+            </div>
+            ${ins.length ? `<div class="rounded-2xl bg-slate-800/60 border border-white/10 p-3"><div class="font-bold text-sm mb-1">Les écarts qui comptent <span class="text-slate-400 font-normal text-xs">· ${spotTxt}</span></div>${ins.map(x => `<button data-tx="fam" data-v="${x.f.k}" class="block w-full text-left text-sm py-1.5 min-h-[36px] hover:text-white text-slate-300">▶ <b>${x.f.l}</b> · ${TX_M[x.k].l} : ${esc(txWho())} <b class="${x.c.z > 0 ? 'text-amber-300' : 'text-sky-300'}">${txPc(x.c.v)}</b> contre ${refN} <b>${txPc(x.c.rv)}</b> sur ${x.c.n} occasions</button>`).join('')}<div class="text-[11px] text-slate-500 mt-1">Écart retenu quand l'échantillon suffit et que la différence dépasse le hasard. « Plus » ou « moins » n'est pas « bon » ou « mauvais » : ça dépend de la famille.</div></div>` : `<div class="rounded-2xl bg-slate-800/40 border border-white/10 p-3 text-xs text-slate-400">${refN ? 'Pas encore d\'écart net dans ce spot : il faut au moins 20 occasions par case (15 flops couverts par le solver en mode GTO). Élargis les filtres ou importe plus de mains.' : 'Choisis une référence (field ou GTO) pour voir les écarts.'}</div>`}
+            <div class="grid gap-3 tx-grid">
+              <div class="rounded-2xl bg-slate-900/80 border border-white/10 p-2 min-w-0">
+                <div class="flex flex-wrap items-center justify-between gap-2 px-1 pb-2"><div class="font-bold text-sm">${spotTxt} <span class="text-slate-400 font-normal text-xs">· ${esc(txWho())}${refN ? ' · petit chiffre = ' + refN : ''}</span></div><div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300">${legend}</div></div>
+                <div class="overflow-x-auto" style="-webkit-overflow-scrolling:touch"><table class="w-full text-sm border-collapse">
+                  <thead><tr class="text-[10.5px] uppercase text-slate-400"><th class="sticky left-0 z-[1] bg-[#0f172a] text-left px-3 py-2">Famille de flop</th><th class="px-2">Flops</th><th class="px-2 text-left">${barH}</th>${cols.map(k => `<th class="px-2 whitespace-nowrap" title="${esc(TX_M[k].d)}">${TX_M[k].l}</th>`).join('')}<th class="px-2" title="Va à l'abattage quand il voit le flop">Abattage</th><th class="px-2 whitespace-nowrap" title="Résultat moyen en BB, all-in ajustés (EV)">BB / main</th></tr></thead>
+                  <tbody>${row('all', 'Tous les flops')}${TXFAM.map(f => row(f.k, f.l)).join('')}</tbody></table></div>
+                <div class="text-[11px] text-slate-500 px-1 pt-2">Touche une ligne : définition, comparaison détaillée et mains à revoir. ▲▼ = écart net avec la référence. « att. » = part de la famille parmi tous les flops possibles. Moins de 5 occasions : case vide.</div>
+              </div>
+              <div id="txDet" class="rounded-2xl bg-slate-900/80 border border-white/10 p-3 min-w-0"></div>
+            </div>
+            <details id="txGtoBox" ${gOpen ? 'open' : ''} class="rounded-2xl bg-slate-900/80 border border-white/10 p-3"><summary class="cursor-pointer min-h-[44px] flex items-center font-bold text-sm">Valeurs GTO de secours pour ce spot <span class="text-slate-400 font-normal text-xs ml-2">(${spotTxt})</span></summary>
+              <p class="text-xs text-slate-400 my-2">En mode GTO, l'app prend d'abord les fichiers solver de l'onglet 📐 GTO postflop : la fréquence y est calculée sur les flops que tu as réellement joués. Ces fichiers couvrent les pots à deux joueurs (BTN contre une blinde, SB contre BB, heads-up). Pour les autres spots (flop à 3, etc.), tu peux saisir ici tes fréquences par famille, en %. Rien n'est prérempli.</p>
+              <div class="overflow-x-auto"><table class="text-sm"><thead><tr class="text-[10.5px] uppercase text-slate-400"><th class="text-left pr-3 py-1">Famille</th>${cols.map(k => `<th class="px-1">${TX_M[k].l}</th>`).join('')}</tr></thead><tbody>${TXFAM.map(f => `<tr><td class="pr-3 py-1 font-semibold whitespace-nowrap">${f.l}</td>${cols.map(k => `<td class="px-1"><input type="number" inputmode="decimal" min="0" max="100" step="1" data-txg="${f.k}|${k}" value="${(gtoSp[f.k] || {})[k] ?? ''}" class="w-20 min-h-[44px] px-2 rounded-lg bg-slate-800 border border-white/10 text-center"></td>`).join('')}</tr>`).join('')}</tbody></table></div>
+              <div class="flex flex-wrap gap-2 mt-3"><button data-tx="gexp" class="min-h-[44px] px-4 rounded-xl bg-slate-700 text-sm font-semibold">⬇ Exporter le CSV (tous les spots)</button><label for="txGtoIn" class="min-h-[44px] px-4 rounded-xl bg-slate-700 text-sm font-semibold inline-flex items-center cursor-pointer">⬆ Importer un CSV</label><input type="file" id="txGtoIn" accept=".csv,.txt,text/csv,text/plain" hidden><button data-tx="gclr" class="min-h-[44px] px-4 rounded-xl bg-slate-800 text-sm text-slate-300">Effacer ce spot</button></div>
+              <p class="text-[11px] text-slate-500 mt-2">CSV, séparateur « ; » : <code>spot;famille;métrique;valeur</code>, une valeur par ligne. Spot = <code>flop|rôle|position</code>, par exemple <code>3M3|L|ip</code> (flop : 3M2, 3M3, HU ; rôle : A relanceur, C payeur, L pot limpé ; position : all, ip, oop). Familles : ${TXFAM.map(f => f.k).join(', ')}. Métriques : ${Object.keys(TX_M).join(', ')}.</p>
+            </details>`;
+            txDetail(D);
+        }
+        function txDetail(D) {
+            const el = document.getElementById('txDet'); if (!el) return; const f = TX.fam === 'all' ? null : TXFK[TX.fam], fk = TX.fam;
+            const a = txGet(D.SU, TX.role, fk), kind = txBarKind(), rb = txRefBar(D, fk);
+            const big = (lab, cnt, keys, n) => { const t = cnt.reduce((s, v) => s + v, 0); return `<div class="mb-2"><div class="flex justify-between text-xs text-slate-400 mb-1"><span class="font-bold text-slate-200">${esc(lab)}</span><span>${n} ${n > 1 ? 'flops' : 'flop'}</span></div>${txBar(cnt, keys, 'h-8')}<div class="flex flex-wrap gap-x-3 text-[11px] text-slate-400 mt-1">${t ? cnt.map((v, i) => v / t >= .005 ? `<span>${keys[i][1].split(' ')[0]} <b class="text-slate-200">${Math.round(100 * v / t)} %</b></span>` : '').join('') : ''}</div></div>`; };
+            const bars = (kd) => { const keys = kd === 'F' ? TX_BF : TX_BV, mine = kd === 'F' ? a.fa : a.fv, n = mine.reduce((s, v) => s + v, 0); if (!n) return '';
+                let ref = ''; const rb2 = kd === kind ? rb : null; if (rb2) ref = big(rb2.lab, rb2.cnt, keys, rb2.n);
+                return `<div class="mt-3"><div class="text-[11px] uppercase text-slate-400 font-bold mb-1">${kd === 'F' ? 'Quand personne n\'a misé' : TX.role === 'L' ? 'Face à la première mise' : 'Face au c-bet'}</div>${big(txWho(), mine, keys, n)}${ref}</div>`; };
+            const L = a.L.slice().sort((x, y) => x.ev - y.ev), sh = L.slice(0, 14);
+            el._ks = L.slice(0, 60);
+            el.innerHTML = `${f ? `<div class="flex items-start justify-between gap-2"><div><div class="font-black text-lg">${f.l}</div><div class="text-sm text-slate-300">${esc(f.d)}</div></div><div class="text-right text-[11px] text-slate-400 shrink-0">${Math.round(100 * txTheo()[fk])} % des flops<br>possibles</div></div>
+              <div class="flex flex-wrap gap-3 mt-2">${f.ex.map(x => `<span class="inline-flex gap-0.5">${txCards(x, true)}</span>`).join('')}</div>` : '<div class="font-black text-lg">Tous les flops</div><div class="text-sm text-slate-400">Touche une famille dans le tableau pour la détailler.</div>'}
+              ${bars('F')}${TX.role !== 'A' ? bars('V') : ''}
+              <div class="mt-3 text-sm"><b>${L.length}</b> ${L.length > 1 ? 'mains' : 'main'} · les plus coûteuses d'abord (EV, all-in ajustés)</div>
+              <div class="mt-2 space-y-1.5 max-h-[460px] overflow-y-auto pr-1">${sh.length ? sh.map((R, i) => `<button data-txrp="${i}" class="w-full flex items-center gap-2 min-h-[48px] px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-left"><span class="inline-flex gap-0.5 shrink-0">${txCards(R.h.board.split(' ').slice(0, 3).join(' '))}</span><span class="text-[11px] text-slate-400 w-14 shrink-0 whitespace-nowrap">${R.pos}${R.ip ? ' · IP' : ''}</span><span class="flex-1 text-[12px] text-slate-200 truncate">${esc(R.sum)}${TX.who !== 'me' ? ` <span class="text-slate-500">· ${esc(R.p)}</span>` : ''}</span><span class="font-bold text-[13px] ${R.ev >= 0 ? 'text-emerald-400' : 'text-rose-400'} shrink-0">${R.ev >= 0 ? '+' : ''}${R.ev.toFixed(1)}</span></button>`).join('') : '<div class="text-sm text-slate-500">Aucune main.</div>'}</div>
+              ${sh.length ? `<button data-tx="rpall" class="mt-2 min-h-[44px] w-full rounded-xl bg-indigo-600 text-white text-sm font-bold">▶ Tout revoir dans le replayer (${Math.min(L.length, 60)})</button>` : ''}`;
+        }
+        function txOpen(k) { const el = document.getElementById('txDet'), L = el && el._ks; if (!L || !L[k]) return; const R = L[k];
+            startReplay(R.h, null, { list: L.map((_, j) => j), cur: k, open: txOpen }, { focus: 'flop', who: R.p, ctx: `Textures : <b>${TXFK[R.fam].l}</b> · ${TX_ROLE[R.role]} · ${R.pos}${R.ip ? ' (en position)' : ''} · ${esc(R.p)} : ${esc(R.sum)}` }); }
+        function txCsv() { const r = ['spot;famille;metrique;valeur']; Object.keys(TX.gto).forEach(s => Object.keys(TX.gto[s]).forEach(f => Object.keys(TX.gto[s][f]).forEach(k => r.push([s, f, k, TX.gto[s][f][k]].join(';'))))); return r.join('\n'); }
+        function txParseCsv(t) { let n = 0; t.split(/\r?\n/).forEach(l => { const p = l.split(/[;\t]/).map(x => x.trim().replace(/^"|"$/g, '')); if (p.length < 4 || !/^(3M2|3M3|HU|all)\|[ACL]\|(all|ip|oop)$/.test(p[0]) || !TXFK[p[1]] || !TX_M[p[2]]) return; const v = parseFloat(p[3].replace(',', '.')); if (!isFinite(v)) return; ((TX.gto[p[0]] = TX.gto[p[0]] || {})[p[1]] = TX.gto[p[0]][p[1]] || {})[p[2]] = Math.max(0, Math.min(100, v)); n++; }); return n; }
+        function txBind() {
+            const box = document.getElementById('txBox'); if (!box || box._b) return; box._b = 1;
+            box.addEventListener('click', e => {
+                const rp = e.target.closest('[data-txrp]'); if (rp) return txOpen(+rp.dataset.txrp);
+                const b = e.target.closest('[data-tx]'); if (!b) return; const a = b.dataset.tx, v = b.dataset.v;
+                if (a === 'who') { TX.who = v; if (v === 'field' && TX.ref === 'field') TX.ref = 'none'; if (v !== 'field' && TX.ref === 'none') TX.ref = 'field'; }
+                else if (a === 'flop' || a === 'role' || a === 'pos' || a === 'dep' || a === 'ref') TX[a] = v;
+                else if (a === 'fam') { TX.fam = v; txSave(); txDetail(txAgg(playerSelect.value)); box.querySelectorAll('tr[data-tx="fam"]').forEach(r => { const on = r.dataset.v === v; r.classList.toggle('bg-indigo-500/20', on); r.classList.toggle('outline', on); r.classList.toggle('outline-2', on); r.classList.toggle('outline-amber-400', on); }); if (innerWidth < 1100) document.getElementById('txDet').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+                else if (a === 'rpall') return txOpen(0);
+                else if (a === 'gexp') { const bl = new Blob([txCsv()], { type: 'text/csv' }), x = document.createElement('a'); x.href = URL.createObjectURL(bl); x.download = 'gto_textures_spins.csv'; document.body.appendChild(x); x.click(); x.remove(); setTimeout(() => URL.revokeObjectURL(x.href), 4000); return; }
+                else if (a === 'gclr') delete TX.gto[txSpot()];
+                txSave(); renderTx();
+            });
+            box.addEventListener('change', async e => {
+                const t = e.target;
+                if (t.id === 'txPl') { TX.player = t.value.trim(); txSave(); return renderTx(); }
+                if (t.dataset && t.dataset.txg) { const [f, k] = t.dataset.txg.split('|'), s = txSpot(), v = parseFloat(String(t.value).replace(',', '.')); const o = ((TX.gto[s] = TX.gto[s] || {})[f] = TX.gto[s][f] || {}); if (isFinite(v)) o[k] = Math.max(0, Math.min(100, v)); else delete o[k]; txSave(); if (TX.ref === 'gto') renderTx(); return; }
+                if (t.id === 'txGtoIn') { const f = t.files[0]; t.value = ''; if (!f) return; const n = txParseCsv(await f.text()); txSave(); alert(n ? n + ' valeurs GTO importées.' : 'Aucune valeur reconnue dans ce CSV.'); renderTx(); }
+            });
+        }
+        // ---- Onglet ----
+        {
+            const st = document.createElement('style'); st.textContent = '.tx-grid{grid-template-columns:minmax(0,1fr)}@media (min-width:1100px){.tx-grid{grid-template-columns:minmax(0,1fr) 360px}}@media (min-width:1500px){.tx-grid{grid-template-columns:minmax(0,1fr) 420px}}#txBox tr[data-tx=fam] td{height:58px}'; document.head.appendChild(st);
+            const lk = document.getElementById('tab-leaks'); if (lk && !document.getElementById('tab-tx')) lk.insertAdjacentHTML('afterend', '<section id="tab-tx" class="hidden"><div id="txBox" class="space-y-3"></div></section>');
+            const sb = document.getElementById('subBar'); if (sb && !document.querySelector('.tab-btn[data-tab="tx"]')) { const b = document.createElement('button'); b.dataset.tab = 'tx'; b.className = 'tab-btn px-4 py-2 rounded-xl text-[13px] font-semibold transition bg-slate-800 text-slate-300'; b.textContent = '🃏 Textures de flop'; b.addEventListener('click', () => showTab('tx')); const ref = document.querySelector('.tab-btn[data-tab="leaks"]'); if (ref) ref.insertAdjacentElement('afterend', b); else sb.appendChild(b); }
+            const g = NAV.find(x => x.id === 'res'); if (g && !g.tabs.includes('tx')) g.tabs.splice(g.tabs.indexOf('leaks') + 1, 0, 'tx');
+            NAV_TAB.tx = ['🃏 Textures de flop', 'Ton jeu au flop sur 8 familles de flop, comparé au field ou au solver'];
+            const _stTx = showTab; showTab = function (t) { _stTx(t); const s = document.getElementById('tab-tx'); if (s) s.classList.toggle('hidden', t !== 'tx');
+                if (t === 'tx') { document.querySelectorAll('.tab-btn').forEach(b => { const on = b.dataset.tab === 'tx'; b.classList.toggle('bg-indigo-600', on); b.classList.toggle('text-white', on); b.classList.toggle('bg-slate-800', !on); b.classList.toggle('text-slate-300', !on); }); try { navSync('tx'); } catch (e) { } txBind(); if (!_txA) { const bx = document.getElementById('txBox'); if (bx && !bx.children.length) bx.innerHTML = '<p class="text-slate-400 text-sm p-4">Lecture des flops…</p>'; setTimeout(renderTx, 30); } else renderTx(); } };
+            const _taTx = triggerAnalysis; triggerAnalysis = function () { const r = _taTx.apply(this, arguments); try { if (curTab() === 'tx') renderTx(); } catch (e) { } return r; };
+        }
 
 </script>
 </body>
