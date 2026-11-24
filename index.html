@@ -4477,7 +4477,7 @@
                 <div class="text-xs font-bold text-slate-300 mb-1">Dernières décisions</div><div class="max-h-56 overflow-auto custom-scrollbar border border-white/10 rounded-lg">${recent.map(h => `<div class="flex flex-wrap gap-3 px-3 py-1 text-xs border-b border-white/5"><span class="${h.ok ? 'text-emerald-400' : 'text-rose-400'}">${h.ok ? '✓' : '✗'}</span><span class="w-12 font-bold text-slate-200">${h.hand}</span><span class="text-slate-400 flex-1 min-w-[12rem]">${esc(h.title)}</span><span>toi : <b>${h.choice}</b></span><span>reco : <b>${h.best}</b></span>${h.adapt ? `<span class="text-amber-300">adaptation ${h.followed ? 'appliquée' : 'manquée'}</span>` : ''}${h.ok ? '' : `<span class="text-rose-300">−${String(h.loss.toFixed(2)).replace('.', ',')} BB</span>`}</div>`).join('')}</div>` : '<p class="text-xs text-slate-500">Joue des spots en mode Coach : tes décisions s\'enregistrent ici, par scénario, avec la part des adaptations que tu appliques vraiment.</p>'}</div>`;
             box.innerHTML = scen + sweep + hist;
         }
-        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed', 'lab_cfg', 'lab_srs', 'lab_log', 'lab_coach']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
+        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed', 'lab_cfg', 'lab_srs', 'lab_log', 'lab_coach', 'slv_cfg']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
         async function bkRestore(x, merge) {
             for (const k of Object.keys(x || {})) { let v = x[k]; try { const cur = await localforage.getItem(k);
                 if (merge && Array.isArray(cur) && Array.isArray(v)) v = k === 'sim_scen' ? [...cur.filter(c => !v.some(n => n.name === c.name)), ...v] : [...cur, ...v.filter(n => !cur.some(c => c.ts === n.ts && c.hand === n.hand))].sort((a, b) => a.ts - b.ts);
@@ -10339,8 +10339,8 @@
         function labRender() {
             const box = document.getElementById('labBox'), hero = playerSelect.value; if (!box) return;
             if (!hero || !allParsedHands.length) { box.innerHTML = '<p class="text-slate-400 text-sm p-4">Importe tes HH et choisis ton pseudo.</p>'; return; }
-            const segs = [['train', '🎯 Entraînement'], ['leak', '🩹 Fuites postflop'], ['fs', '📋 Fiche solveur'], ['tl', '👁 Tells de taille'], ['tool', '🧮 Outils']];
-            let body = ''; try { body = LAB.seg === 'leak' ? labLeakHtml(hero) : LAB.seg === 'fs' ? labFsHtml(hero) : LAB.seg === 'tl' ? labTlHtml(hero) : LAB.seg === 'tool' ? labToolHtml(hero) : labTrainHtml(hero); } catch (e) { console.error('lab', e); body = `<div class="text-rose-300 text-sm">${esc(e.message)}</div>`; }
+            const segs = [['train', '🎯 Entraînement'], ['leak', '🩹 Fuites postflop'], ['fs', '📋 Fiche solveur'], ['tl', '👁 Tells de taille'], ['tool', '🧮 Outils'], ['todo', '🗂 Spots à solver']];
+            let body = ''; try { body = LAB.seg === 'leak' ? labLeakHtml(hero) : LAB.seg === 'fs' ? labFsHtml(hero) : LAB.seg === 'tl' ? labTlHtml(hero) : LAB.seg === 'tool' ? labToolHtml(hero) : LAB.seg === 'todo' ? labTodoHtml(hero) : labTrainHtml(hero); } catch (e) { console.error('lab', e); body = `<div class="text-rose-300 text-sm">${esc(e.message)}</div>`; }
             box.innerHTML = `<div class="flex flex-wrap gap-1.5 mb-3">${segs.map(([v, l]) => `<button data-lab="seg" data-v="${v}" class="min-h-[44px] px-4 rounded-xl text-sm font-bold ${LAB.seg === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('')}</div><div class="pc">${body}</div>`;
             clearInterval(_labTm); const Q = LAB.q;
             if (LAB.seg === 'train' && Q && !Q.done && !Q.ans && Q.g === 'bc') { let t = 6; _labTm = setInterval(() => { t--; const el = document.getElementById('labTm'); if (el) el.textContent = t; if (t <= 0) { clearInterval(_labTm); if (LAB.q === Q && !Q.ans) labAnswer(null); } }, 1000); }
@@ -10432,6 +10432,253 @@
             el.insertAdjacentHTML('afterbegin', `<details class="pc" open><summary class="cursor-pointer min-h-[44px] flex items-center font-bold text-slate-100">🧭 Coach de séance <span class="ml-2 text-xs font-normal text-slate-400">(trois objectifs avant de jouer, le bilan après)</span></summary><div class="mt-2">${a}</div></details>`);
             el.insertAdjacentHTML('beforeend', `<details class="pc"><summary class="cursor-pointer min-h-[44px] flex items-center font-bold text-slate-100">🧠 Fatigue et tilt <span class="ml-2 text-xs font-normal text-slate-400">(tes erreurs selon la durée de séance et après une série de défaites)</span></summary><div class="mt-2">${b}</div></details>`); }; }
         document.addEventListener('click', e => { const b = e.target.closest('#dvBox [data-dv]'); if (!b) return; if (b.dataset.dv === 'prep') labCoachPrep(); if (b.dataset.dv === 'close') { const R = labCoachEval(playerSelect.value) || []; LAB.hist.unshift({ at: LAB.coach.at, n: R.length, ok: R.filter(g => g.n >= 5 && g.after <= Math.max(.04, g.before * .75)).length }); LAB.hist = LAB.hist.slice(0, 30); LAB.coach = null; labSave(); labCoachPrep(); } });
+
+        // ===================== 89. SOLVEURS : ta charte d'abord, corrigée de l'effet des stacks ; calcul en lot depuis tes HH ; calibrage =====================
+        // Auto : ta charte (stacks égaux) + (solveur aux stacks exacts − solveur aux stacks égaux). Les actions absentes de l'arbre du solveur (limp) gardent la valeur de ta charte.
+        const SLV = { prio: 'auto', minN: 2, run: false, stop: false, done: 0, tot: 0, msg: '', cal: null };
+        (async () => { try { const c = await localforage.getItem('slv_cfg'); if (c) { if (c.prio) SLV.prio = c.prio; if (c.minN) SLV.minN = c.minN; } } catch (e) { } })();
+        const slvSave = () => { try { localforage.setItem('slv_cfg', { prio: SLV.prio, minN: SLV.minN }); } catch (e) { } };
+        const SLV_PRIO = { auto: 'Ta charte, corrigée aux stacks exacts', chart: 'Toujours ta charte', solver: 'Solveur brut aux stacks exacts' };
+        // stockage compact : une probabilité par main sur 1 octet (≈ 5 Ko par configuration au lieu de 50)
+        const slvB64 = a => { let s = ''; for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); };
+        const slvU8 = s => { const b = atob(s), a = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; };
+        function slvPack(R) { const n = {}; const ids = new Set(Object.values(S4_MAP).map(x => x[0]));
+            ids.forEach(id => { const nd = R.nodes[id]; if (!nd) return; const u = new Uint8Array(nd.sg.length * 169); nd.sg.forEach((a, k) => { for (let i = 0; i < 169; i++) u[k * 169 + i] = Math.round(255 * Math.max(0, Math.min(1, a[i]))); }); n[id] = { k: nd.keys, b: slvB64(u) }; });
+            return { t: Date.now(), n, z: 1 }; }
+        const _slvDec = new WeakMap();
+        { const _s4n = s4Node; s4Node = function (rec, id) { const m = S4_MAP[id]; if (rec && rec.z && rec.n && m && rec.n[m[0]] && rec.n[m[0]].b) { const nd = rec.n[m[0]];
+                if (!_slvDec.has(nd)) { const u = slvU8(nd.b), s = nd.k.map((_, k) => Array.from(u.subarray(k * 169, k * 169 + 169), v => v / 255)); _slvDec.set(nd, { k: nd.k, s }); }
+                return _s4n({ n: { [m[0]]: _slvDec.get(nd) } }, id); } return _s4n(rec, id); }; }
+        const slvSym = S => s4Key({ BTN: S, SB: S, BB: S });
+        // combinaison charte + écart du solveur
+        function slvMix(base, asym, sym, id) {
+            const acts = PF_ACTS[id] || [], P = {}; acts.forEach(a => P[a] = new Float64Array(169));
+            for (let i = 0; i < 169; i++) { let t = 0; acts.forEach(a => { const v = Math.max(0, (base.P[a] ? base.P[a][i] : 0) + (asym[a] ? asym[a][i] : 0) - (sym[a] ? sym[a][i] : 0)); P[a][i] = v; t += v; });
+                if (t > 0) acts.forEach(a => P[a][i] /= t); else acts.forEach(a => P[a][i] = base.P[a] ? base.P[a][i] : 0); }
+            return P;
+        }
+        const _slvMC = new Map();
+        { const _pcS = pfChart; pfChart = function (fmt, S, id) {
+            if (fmt !== '3M' || !_pfX || !_pfX.P[id] || SLV.prio === 'solver') return _pcS.apply(this, arguments);
+            const X = _pfX; _pfX = null; let base; try { base = _pcS(fmt, S, id); } finally { _pfX = X; }
+            if (SLV.prio === 'chart') return base;
+            const ck = X.key + '|' + S + '|' + id; if (_slvMC.has(ck)) return _slvMC.get(ck); const symR = s4C[slvSym(S)];
+            if (!symR) return base; const sym = s4Node(symR, id), asym = s4Node(s4C[X.key], id); if (!sym || !asym) return base;
+            const r = { P: slvMix(base, asym, sym, id), src: `ta charte ${S} BB corrigée aux stacks exacts (${_pf3St ? pfStLab(_pf3St) : ''})`, exact: base.exact, corr: true }; if (_slvMC.size > 3000) _slvMC.clear(); _slvMC.set(ck, r); return r; }; }
+        // jugement de tes mains : même règle
+        { const _ov = pf3Ov; pf3Ov = function (h, node, bb, so) {
+            if (SLV.prio === 'solver') return _ov.apply(this, arguments); if (SLV.prio === 'chart') return null;
+            const st = { BTN: h.stacks[so.btn] / bb, SB: h.stacks[so.sb] / bb, BB: h.stacks[so.bb] / bb }, key = s4Key(st), rec = s4C[key]; if (!rec || !S4_MAP[node]) return null;
+            const me = PF_OWN[node] || 'BTN', E = Math.min(st[me], Math.max(...['BTN', 'SB', 'BB'].filter(p => p !== me).map(p => st[p]))), S = Math.max(1, Math.min(25, Math.round(E))), symR = s4C[slvSym(S)]; if (!symR) return null;
+            const X = _pfX; _pfX = null; let base; try { base = pfChart('3M', S, node); } finally { _pfX = X; }
+            const sym = s4Node(symR, node), asym = s4Node(rec, node); if (!sym || !asym) return null;
+            return { P: slvMix(base, asym, sym, node), src: `ta charte ${S} BB corrigée aux stacks exacts ${pfStLab(st)}`, exact: true }; }; }
+
+        // ---- calcul en lot : configurations de stacks relevées dans tes HH ----
+        function slvNeed() {
+            const K = new Map(); allParsedHands.forEach(h => { if (h.buyin === 0 || h.players.length !== 3) return; const so = trSeatOrder(h), bb = bbOf(h); if (!so.btn || !bb) return;
+                const st = { BTN: h.stacks[so.btn] / bb, SB: h.stacks[so.sb] / bb, BB: h.stacks[so.bb] / bb }, E = Math.min(st.BTN, Math.max(st.SB, st.BB)); if (E > 25.5) return;
+                const k = s4Key(st), o = K.get(k) || { k, st, n: 0, sym: false }; o.n++; K.set(k, o); });
+            const sym = []; for (let S = 2; S <= 25; S++) { const k = slvSym(S); sym.push({ k, st: { BTN: S, SB: S, BB: S }, n: 1e9, sym: true }); }
+            const all = [...sym, ...[...K.values()].filter(o => !sym.some(s => s.k === o.k) && o.n >= SLV.minN).sort((a, b) => b.n - a.n)];
+            const todo = all.filter(o => !s4C[o.k]); return { all, todo, seen: K.size, cover: [...K.values()].filter(o => s4C[o.k]).reduce((a, o) => a + o.n, 0), hands: [...K.values()].reduce((a, o) => a + o.n, 0) };
+        }
+        async function slvRun(quiet) {
+            if (SLV.run || s4Busy) return; await s4Ready; const N = slvNeed(); if (!N.todo.length) { SLV.msg = 'Tout est déjà calculé.'; return slvRender(); }
+            Object.assign(SLV, { run: true, stop: false, done: 0, tot: N.todo.length, msg: 'Tirage des donnes…', quiet: !!quiet }); slvRender(); s4Busy = true;
+            const t0 = performance.now(); let since = 0;
+            try { for (const o of N.todo) { if (SLV.stop) break;
+                    const R = await S4.solve({ st: [s4R(o.st.BTN), s4R(o.st.SB), s4R(o.st.BB)], a: 0, hd: [0, 0, 0], rip: PF_CFG.ipR, roop: PF_CFG.oopR });
+                    s4C[o.k] = slvPack(R); SLV.done++; since++;
+                    const el = (performance.now() - t0) / 1000, left = el / SLV.done * (SLV.tot - SLV.done); SLV.msg = `${SLV.done} / ${SLV.tot} configurations · reste environ ${left > 5400 ? (left / 3600).toFixed(1).replace('.', ',') + ' h' : left > 90 ? Math.round(left / 60) + ' min' : Math.round(left) + ' s'}`; slvProg();
+                    if (since >= 10) { since = 0; try { await localforage.setItem('spin_s4c', s4C); } catch (e) { } } }
+            } catch (e) { console.error('slv', e); SLV.msg = 'Erreur : ' + e.message; }
+            try { await localforage.setItem('spin_s4c', s4C); } catch (e) { }
+            SLV.run = false; s4Busy = false; _slvMC.clear(); SLV.cal = null; try { pfInval(); } catch (e) { } if (!SLV.msg.startsWith('Erreur')) SLV.msg = SLV.stop ? `Arrêté : ${SLV.done} configurations enregistrées.` : `Terminé : ${SLV.done} configurations enregistrées.`; slvRender();
+            try { if (curTab() === 'mtab' && typeof renderMt === 'function') renderMt(); } catch (e) { }
+        }
+        function slvProg() { const m = document.getElementById('slvMsg'), b = document.getElementById('slvBar'); if (m) m.textContent = SLV.msg; if (b) b.style.width = (SLV.tot ? 100 * SLV.done / SLV.tot : 0).toFixed(1) + '%'; }
+
+        // ---- calibrage : à stacks égaux, le solveur de l'app doit retrouver ta charte ----
+        const SLV_CALN = [['T_O', 'BTN premier à parler'], ['T_SAI', 'SB face au shove du BTN'], ['T_BAIF', 'BB face au shove du BTN (SB fold)'], ['T_SR', 'SB face au min-raise du BTN'], ['T_BRF', 'BB face au min-raise du BTN (SB fold)']];
+        function slvCal() {
+            if (SLV.cal) return SLV.cal; const g = gto(), cw = i => g.comb[i] / 1326, rows = [];
+            [4, 6, 8, 10, 12, 15].forEach(S => { const rec = s4C[slvSym(S)]; if (!rec) return; const X = _pfX; _pfX = null;
+                try { SLV_CALN.forEach(([id, lab]) => { const c = pfChart('3M', S, id), s = s4Node(rec, id); if (!c || !s || c.src === 'aucune charte') return; const acts = PF_ACTS[id]; let d = 0, w = 0, chg = 0, cs = 0, ss = 0;
+                        const agg = acts.filter(a => a !== 'fold'), tot = P => { let t = 0; for (let i = 0; i < 169; i++) t += cw(i) * agg.reduce((x, a) => x + (P[a] ? P[a][i] : 0), 0); return t; };
+                        for (let i = 0; i < 169; i++) { const ca = acts.map(a => c.P[a] ? c.P[a][i] : 0), sa = acts.map(a => s[a] ? s[a][i] : 0); let dd = 0; acts.forEach((_, k) => dd += Math.abs(ca[k] - sa[k])); d += cw(i) * dd / 2; w += cw(i);
+                            const am = A => A.indexOf(Math.max(...A)); if (am(ca) !== am(sa) && Math.abs(Math.max(...ca) - Math.max(...sa)) > .3) chg++; }
+                        cs = tot(c.P); ss = tot(s); const hasL = acts.includes('limp') && c.P.limp ? (() => { let t = 0; for (let i = 0; i < 169; i++) t += cw(i) * c.P.limp[i]; return t; })() : 0;
+                        rows.push({ S, id, lab, d: d / w, chg, cs, ss, limp: hasL }); }); } finally { _pfX = X; } });
+            return SLV.cal = rows;
+        }
+        function slvCalHtml() {
+            const R = slvCal(); if (!R.length) return '<div class="text-sm text-slate-400">Lance le calcul : les 24 configurations à stacks égaux passent en premier, le calibrage s\'affiche dès qu\'elles sont prêtes.</div>';
+            const col = d => d < .08 ? 'text-emerald-400' : d < .15 ? 'text-amber-300' : 'text-rose-400', byS = {}; R.forEach(r => (byS[r.id] = byS[r.id] || []).push(r));
+            const avg = R.reduce((a, r) => a + r.d, 0) / R.length;
+            return `<div class="text-sm text-slate-200 mb-2">Écart moyen entre le solveur de l'app et ta charte, à stacks égaux : <b class="${col(avg)}">${Math.round(100 * avg)} %</b> des mains jouées autrement. ${avg < .1 ? 'Le solveur de l\'app reproduit bien ta charte : sa correction des stacks est fiable.' : 'Écart notable : la correction reste utile (elle ne garde que l\'effet des stacks), mais regarde les nœuds en rouge.'}</div>
+                <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-[10px] uppercase text-slate-400"><th class="text-left">Nœud</th>${[4, 6, 8, 10, 12, 15].map(S => `<th class="px-2">${S} BB</th>`).join('')}</tr></thead><tbody>${SLV_CALN.filter(([id]) => byS[id]).map(([id, lab]) => `<tr class="border-t border-white/5"><td class="py-1.5 pr-3">${lab}</td>${[4, 6, 8, 10, 12, 15].map(S => { const r = byS[id].find(x => x.S === S); return r ? `<td class="px-2 text-center" title="Ta charte joue ${Math.round(100 * r.cs)} % des mains (hors fold), le solveur ${Math.round(100 * r.ss)} %${r.limp ? ' · ta charte limpe ' + Math.round(100 * r.limp) + ' % : le solveur ne limpe pas' : ''}"><b class="${col(r.d)}">${Math.round(100 * r.d)} %</b><div class="text-[10px] text-slate-500">${Math.round(100 * r.cs)} → ${Math.round(100 * r.ss)} %${r.limp > .02 ? ' · limp' : ''}</div></td>` : '<td class="px-2 text-center text-slate-600">–</td>'; }).join('')}</tr>`).join('')}</tbody></table></div>
+                <div class="text-[11px] text-slate-500 mt-2">Chaque case : part des mains jouées différemment (en dessous, la part de mains jouées hors fold : ta charte → le solveur). Le solveur de l'app ne connaît pas le limp du BTN ni le 3-bet non all-in : là où ta charte limpe, l'écart est normal, et la correction n'y touche pas. C'est pour ça que l'app garde ta charte comme base et n'ajoute que l'effet des stacks.</div>`;
+        }
+        function slvRender() {
+            const el = document.getElementById('slvBox'), hero = playerSelect.value; if (!el) return; if (!hero || !allParsedHands.length) { el.innerHTML = ''; return; }
+            let N; try { N = slvNeed(); } catch (e) { el.innerHTML = `<div class="pc text-rose-300 text-sm">${esc(e.message)}</div>`; return; }
+            const done = N.all.length - N.todo.length, estS = N.todo.length * 5.5, est = estS > 5400 ? (estS / 3600).toFixed(1).replace('.', ',') + ' h' : Math.round(estS / 60) + ' min';
+            const opt = (v, l) => `<button data-slv="prio" data-v="${v}" class="min-h-[44px] px-3 rounded-xl text-xs font-bold ${SLV.prio === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`;
+            el.innerHTML = `<div class="pc"><div class="h3t">⚙️ Ta charte d'abord, corrigée aux stacks exacts</div>
+                <div class="text-sm text-slate-300 mb-2">Ta charte 3-way suppose trois stacks égaux. Quand ils ne le sont pas, l'app garde ta charte et y ajoute seulement l'effet des stacks : <i>solveur aux stacks exacts − solveur aux stacks égaux</i>. Le limp et ce que le solveur ne connaît pas restent ceux de ta charte. Le heads-up et le BvB n'en ont pas besoin : à deux, seul le stack effectif compte, et tes charts couvrent 2 à 16 BB.</div>
+                <div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[10px] uppercase text-slate-400 font-bold mr-1">Référence</span>${opt('auto', 'Ta charte corrigée (conseillé)')}${opt('chart', 'Toujours ta charte')}${opt('solver', 'Solveur brut')}</div>
+                <div class="h3t mt-4">📦 Calcul en lot depuis tes HH</div>
+                <div class="text-sm text-slate-300">${N.seen.toLocaleString('fr-FR')} configurations de stacks 3-way dans tes mains (jusqu'à 25 BB effectifs). Calculées : <b>${done}</b> sur ${N.all.length} retenues (les 24 à stacks égaux, puis celles vues au moins ${SLV.minN} fois, les plus fréquentes d'abord). Mains couvertes : <b>${Math.round(100 * N.cover / Math.max(1, N.hands))} %</b>.</div>
+                <div class="flex flex-wrap items-center gap-2 mt-2"><span class="text-xs text-slate-400">Retenir les configurations vues au moins</span>${[1, 2, 3, 5].map(v => `<button data-slv="min" data-v="${v}" class="min-h-[40px] px-3 rounded-lg text-xs font-bold ${SLV.minN === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${v} fois</button>`).join('')}</div>
+                <div class="flex flex-wrap items-center gap-3 mt-3">${SLV.run ? `<button data-slv="stop" class="min-h-[48px] px-5 rounded-xl bg-rose-700 text-white font-bold">⏸ Arrêter (tout est enregistré)</button>` : N.todo.length ? `<button data-slv="go" class="min-h-[48px] px-5 rounded-xl bg-fuchsia-700 text-white font-bold">▶ Calculer les ${N.todo.length} restantes (≈ ${est} sur PC)</button>` : '<span class="text-emerald-300 font-bold text-sm">✓ Tout est calculé</span>'}<span id="slvMsg" class="text-sm text-slate-300">${esc(SLV.msg)}</span></div>
+                ${SLV.run ? '<div class="h-2 rounded bg-slate-800 mt-2 overflow-hidden"><div id="slvBar" class="h-2 bg-fuchsia-500" style="width:0%"></div></div>' : ''}
+                <div class="text-[11px] text-slate-500 mt-2">Environ 5 s par configuration sur PC (bien plus sur tablette) : lance-le sur le PC, l'onglet ouvert. Chaque configuration est enregistrée au fur et à mesure ; tu peux arrêter et reprendre quand tu veux. Après un import, les nouvelles configurations se calculent seules en fond s'il y en a peu. Pour la tablette : « Exporter BDD » sur le PC, puis « Restaurer BDD » sur la tablette : les calculs voyagent avec tes mains.</div></div>
+                <div class="pc"><div class="h3t">🎯 Calibrage : le solveur de l'app contre ta charte</div>${slvCalHtml()}</div>`;
+            slvProg();
+        }
+        document.addEventListener('click', e => { const b = e.target.closest('[data-slv]'); if (!b) return; const a = b.dataset.slv;
+            if (a === 'go') slvRun(false); else if (a === 'stop') { SLV.stop = true; SLV.msg = 'Arrêt après la configuration en cours…'; slvProg(); }
+            else if (a === 'prio') { SLV.prio = b.dataset.v; slvSave(); _slvMC.clear(); try { pfInval(); } catch (x) { } slvRender(); try { if (curTab() === 'mtab') renderMt(); } catch (x) { } }
+            else if (a === 'min') { SLV.minN = +b.dataset.v; slvSave(); slvRender(); } });
+        { const _rs = renderSolv; renderSolv = function () { const r = _rs.apply(this, arguments); const box = document.getElementById('solvBox'); if (box) { let el = document.getElementById('slvBox'); if (!el) { el = document.createElement('div'); el.id = 'slvBox'; el.className = 'space-y-6'; } box.prepend(el); try { slvRender(); } catch (e) { console.error('slv', e); } } return r; }; }
+        // après un import : calcul automatique en fond s'il manque peu de configurations
+        { let tm = null; const _taS = triggerAnalysis; triggerAnalysis = function () { const r = _taS.apply(this, arguments); clearTimeout(tm);
+            tm = setTimeout(async () => { try { await s4Ready; if (!playerSelect.value || SLV.run || !Object.keys(s4C).some(k => s4C[k] && s4C[k].z)) return; const n = slvNeed().todo.length; if (n > 0 && n <= 30) slvRun(true); } catch (e) { } }, 9000); return r; }; }
+
+        // ---- Mode table : bandeau, avec ce qui change par rapport à ta charte ----
+        { const _bar = mtS4Bar; mtS4Bar = function () { try { if (MT.fmt !== '3') return '';
+            const st = {}; for (let k = 0; k < 3; k++) st[mtPosOf(k)] = mtQ(MT.st[k]); const key = s4Key(st), has = !!s4C[key], v = [st.BTN, st.SB, st.BB], diff = Math.max(...v) - Math.min(...v);
+            if (SLV.prio === 'solver') return _bar();
+            if (SLV.prio === 'chart') return `<div class="text-xs rounded-xl bg-slate-800/70 px-3 py-2 mb-2 text-slate-300">📘 Référence : <b>ta charte</b> (réglage « Toujours ta charte » dans Solveur 3-way).</div>`;
+            const E = Math.min(st.BTN, Math.max(st.SB, st.BB)), S = Math.max(1, Math.min(25, Math.round(E))), sym = !!s4C[slvSym(S)];
+            if (!has || !sym) return diff < 2 ? '' : `<div class="flex flex-wrap items-center gap-2 mb-2"><button data-s4="go" class="px-4 min-h-[44px] rounded-xl text-sm font-bold bg-fuchsia-700 text-white">🧠 Corriger ta charte pour ces stacks</button><span class="text-xs text-amber-300">Stacks différents (${pfStLab(st)}) : ta charte suppose des stacks égaux. ${!sym ? 'Lance aussi le calcul en lot (onglet Solveur 3-way) pour les stacks égaux.' : ''}</span></div>`;
+            // mains dont l'action principale change au BTN (premier à parler)
+            const X = _pfX; let ch = '';
+            try { _pfX = null; const base = pfChart('3M', S, 'T_O'), sy = s4Node(s4C[slvSym(S)], 'T_O'), as = s4Node(s4C[key], 'T_O'), P = slvMix(base, as, sy, 'T_O'), acts = PF_ACTS.T_O, L = {};
+                for (let i = 0; i < 169; i++) { const a0 = acts.reduce((b, a) => base.P[a][i] > base.P[b][i] ? a : b, 'fold'), a1 = acts.reduce((b, a) => P[a][i] > P[b][i] ? a : b, 'fold'); if (a0 !== a1 && Math.abs(P[a1][i] - base.P[a1][i]) > .25) (L[a0 + '→' + a1] = L[a0 + '→' + a1] || []).push(cname(i)); }
+                const lab = { fold: 'fold', limp: 'limp', raise: 'min-raise', shove: 'shove' }; ch = Object.entries(L).sort((a, b) => b[1].length - a[1].length).slice(0, 3).map(([k, hs]) => { const [a, b] = k.split('→'); return `${lab[a]} → <b>${lab[b]}</b> : ${hs.slice(0, 6).join(', ')}${hs.length > 6 ? ` +${hs.length - 6}` : ''}`; }).join(' · ');
+            } catch (e) { } finally { _pfX = X; }
+            return `<div class="text-xs rounded-xl bg-fuchsia-900/30 border border-fuchsia-500/30 px-3 py-2 mb-2 text-fuchsia-100">🧠 <b>Ta charte ${S} BB, corrigée aux stacks exacts</b> (${pfStLab(st)}).${ch ? ` Au BTN, ça change : ${ch}.` : ' Au BTN, rien ne change vraiment.'}</div>`;
+            } catch (e) { console.error('slv bar', e); return _bar(); } }; }
+        // s4Go (bouton du Mode table) enregistre aussi les stacks égaux qui servent de base à la correction
+        { const _go = s4Go; s4Go = async function () { await _go.apply(this, arguments); try { if (MT.fmt !== '3' || SLV.prio !== 'auto') return; const st = {}; for (let k = 0; k < 3; k++) st[mtPosOf(k)] = mtQ(MT.st[k]); const S = Math.max(1, Math.min(25, Math.round(Math.min(st.BTN, Math.max(st.SB, st.BB))))), k = slvSym(S);
+                if (!s4C[k]) { s4Busy = true; busyOn('Stacks égaux (base de la correction)…', 50); try { const R = await S4.solve({ st: [S, S, S], a: 0, hd: [0, 0, 0], rip: PF_CFG.ipR, roop: PF_CFG.oopR }); s4C[k] = slvPack(R); await localforage.setItem('spin_s4c', s4C); } finally { s4Busy = false; busyOff(); } }
+                if (s4C[s4Key(st)] && !s4C[s4Key(st)].z) { /* ancien format conservé */ } _slvMC.clear(); pfInval(); renderMt(); } catch (e) { console.error('s4Go+', e); } }; }
+
+        // ===================== 91. MODE TABLE : TES SOLVES POSTFLOP (fichiers de ton solveur) AU FLOP =====================
+        // Le spot est retrouvé depuis la ligne préflop du Mode table (comme pour une main réelle) ; flop exact si tu as touché les 3 cartes, sinon moyenne de la famille.
+        let _gpFam = null;
+        function gpFamIdx() { if (_gpFam) return _gpFam; const K = GP_FLOPS.split(','), iso = gpIso(), w = new Float64Array(K.length); iso.forEach(ix => w[ix]++); const F = {};
+            K.forEach((k, ix) => { const f = txFamOf3([0, 2, 4].map(i => k.slice(i, i + 2))); if (f) (F[f] = F[f] || []).push(ix); }); return _gpFam = { F, w }; }
+        function gpFreq(sp, cards, fam) {
+            if (cards) { const ix = gpIso().get(gpSortCards(cards)); return ix == null ? null : { p: gpProb(sp, ix), exact: true }; }
+            const G = gpFamIdx(), L = G.F[fam]; if (!L || !L.length) return null; const p = new Float64Array(sp.n); let t = 0;
+            L.forEach(ix => { const q = gpProb(sp, ix), w = G.w[ix]; t += w; for (let j = 0; j < sp.n; j++) p[j] += w * q[j]; }); for (let j = 0; j < sp.n; j++) p[j] /= t; return { p, exact: false, nf: L.length };
+        }
+        // ligne préflop du Mode table → arbre des fichiers (SRP, 3BP, LIMP, SBR, ISO, HUISO) et position hors de position
+        function mtGpTree(C) {
+            if (!C || !C.linked || C.seats.length !== 2) return null; const pos = C.seats.map(k => C.pos(k)), A = {}; (C.line || []).forEach(x => { if (x.a !== 'fold') (A[x.w] = A[x.w] || []).push(x.a); });
+            const has = (w, a) => (A[w] || []).includes(a), raiser = Object.keys(A).filter(w => has(w, 'raise'));
+            if (C.hu) { if (has('SB', 'limp') && has('BB', 'raise')) return { tree: 'HUISO', opp: 'BB' }; return null; }
+            if (pos.includes('BTN')) { const bl = pos.find(p => p !== 'BTN'); if (!has('BTN', 'raise')) return null;
+                if (has(bl, 'raise')) return { tree: '3BP', opp: bl }; return { tree: 'SRP', opp: bl }; }
+            if (has('SB', 'limp') && has('BB', 'raise')) return { tree: 'ISO', opp: 'SB' }; if (has('SB', 'limp')) return { tree: 'LIMP', opp: 'SB' }; if (has('SB', 'raise')) return { tree: 'SBR', opp: 'SB' };
+            return null;
+        }
+        function mtGpFind(T, role, kind, eff0, pot) { const out = [];
+            Object.values(gpReg()).forEach(sp => { const m = sp.meta; if (m.tree !== T.tree || m.opp !== T.opp || m.role !== role || m.kind !== kind) return; if (pot != null && m.pot != null && Math.abs(m.pot - pot) > .8) return; const dd = Math.abs(eff0 - m.depth); if (dd > 2.5) return; out.push({ sp, dd }); });
+            if (kind !== 'bet') return out.sort((a, b) => a.dd - b.dd).slice(0, 1);
+            const by = {}; out.forEach(o => { const k = Math.round(o.sp.meta.par * 10); if (!by[k] || o.dd < by[k].dd) by[k] = o; }); return Object.values(by).sort((a, b) => a.sp.meta.par - b.sp.meta.par).slice(0, 3);
+        }
+        const GP_COL = { fold: '#475569', check: '#0ea5e9', call: '#10b981', bet: '#f59e0b', raise: '#f97316', allin: '#e11d48', other: '#64748b' };
+        function mtGpBar(sp, p) {
+            const items = sp.opts.map((o, j) => ({ o, v: p[j] })).filter(x => x.v > .005);
+            return `<div class="flex h-7 rounded-lg overflow-hidden mt-1">${items.map(x => `<div style="width:${100 * x.v}%;background:${GP_COL[x.o.k] || GP_COL.other}" class="flex items-center justify-center text-[10px] font-bold text-white" title="${esc(x.o.t)} ${Math.round(100 * x.v)} %">${x.v >= .1 ? Math.round(100 * x.v) + ' %' : ''}</div>`).join('')}</div>
+                <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-slate-300 mt-1">${items.sort((a, b) => b.v - a.v).map(x => `<span><span class="inline-block w-2.5 h-2.5 rounded-sm mr-1 align-middle" style="background:${GP_COL[x.o.k] || GP_COL.other}"></span>${esc(x.o.t)} <b class="text-white">${Math.round(100 * x.v)} %</b></span>`).join('')}</div>`;
+        }
+        function mtGpHtml(C) {
+            const T = mtGpTree(C); if (!T) return ''; const me = C.pos(0), ip = C.ipOf(0), eff0 = Math.min(...C.seats.map(k => mtQ(MT.st[k]))), pot = C.pot, cards = C.cards, fam = C.fam;
+            const first = mtGpFind(T, me, me === T.opp ? 'first' : 'x', eff0, pot)[0], bets = mtGpFind(T, me, 'bet', eff0, pot);
+            if (!first && !bets.length) return '';
+            const where = cards ? `flop ${cards.map(c => c[0] + ({ c: '♣', d: '♦', h: '♥', s: '♠' })[c[1]]).join(' ')}` : `moyenne des flops ${(TXFAM.find(f => f.k === fam) || {}).l || ''}`, oppPos = C.pos(C.opp[0]);
+            let h = '';
+            if (first) { const F = gpFreq(first.sp, cards, fam); if (F) h += `<div class="mt-1"><div class="text-[11px] uppercase font-bold text-amber-300">${me === T.opp ? 'Tu parles en premier' : `${oppPos} check`} → ton solveur</div>${mtGpBar(first.sp, F.p)}</div>`; }
+            bets.forEach(o => { const F = gpFreq(o.sp, cards, fam); if (!F) return; const b = o.sp.meta.par; h += `<div class="mt-2 pt-2 border-t border-white/10"><div class="text-[11px] uppercase font-bold text-amber-300">${me === T.opp ? `Tu checkes, ${oppPos} mise` : `${oppPos} mise`} ${String(Math.round(b * 10) / 10).replace('.', ',')} BB (${Math.round(100 * b / Math.max(.5, o.sp.meta.pot || pot))} % du pot) → ton solveur</div>${mtGpBar(o.sp, F.p)}</div>`; });
+            if (!h) return ''; const dep = first ? first.sp.meta.depth : bets[0].sp.meta.depth;
+            return `<div class="rounded-2xl bg-amber-950/40 border border-amber-400/40 p-3 mb-2"><div class="flex items-baseline justify-between gap-2 flex-wrap"><div class="font-bold">🎯 Ton solveur · ${where}</div><div class="text-[11px] text-slate-400">fichier ${dep} BB (toi ${String(eff0).replace('.', ',')} BB)</div></div>${h}
+                <div class="text-[10.5px] text-slate-500 mt-1">Fréquences de toute sa range dans tes fichiers de solveur (pas la décision pour ta main précise : pour ça, regarde le conseil chiffré ci-dessous).${cards ? '' : ' Touche les 3 cartes du flop pour les chiffres exacts de ce flop.'}</div></div>`;
+        }
+        { const _mvG = mpVerdictHtml; mpVerdictHtml = function (C, hero, st, V) { const r = _mvG.apply(this, arguments); if (st !== 'F') return r; let g = ''; try { g = mtGpHtml(C); } catch (e) { console.error('mtGp', e); } return g + r; }; }
+
+        // ===================== 92. SPOTS À SOLVER : tes situations postflop sans fichier de solveur, classées par fréquence =====================
+        // Nom de fichier générique reconnu à l'import : SPOT_<arbre>_<hors position>_<qui décide>_<type>_<taille>_<profondeur>bb (ex. SPOT_SRP_BB_BB_first_0_12bb.xlsx)
+        { const _gm = gpMeta; gpMeta = function (id, pot) { const base = String(id).replace(/@.*$/, ''), m = base.match(/^SPOT_(SRP|3BP|LIMP|SBR|ISO|HUISO)_(BB|SB)_(BTN|BB|SB)_(first|x|bet|xr|xrshove|shove|leadallin)_([\d.]+)(?:-([\d.]+))?_(\d+)bb$/);
+            if (!m) return _gm.apply(this, arguments); const [, tree, opp, role, kind, a, b, d] = m, P = pot || TD_POT[tree] || 4.5, par = kind === 'xr' || kind === 'xrshove' ? { b: +a, to: +b } : +a;
+            return { tree, opp, role, kind, par, depth: +d, pot: P, title: tdTitle({ tree, opp, role, kind, par }), ...(kind === 'xr' || kind === 'xrshove' ? { b: +a, to: +b } : {}) }; }; }
+        const TD_POT = { SRP: 4.5, '3BP': 9, LIMP: 2, SBR: 5, ISO: 6, HUISO: 6 };
+        const TD_TREE = { SRP: '3-max · BTN min-raise, la blind paie', '3BP': '3-max · BTN ouvre, la blind 3-bet, BTN paie', LIMP: 'BvB · SB limpe, BB checke', SBR: 'BvB · SB relance, BB paie', ISO: 'BvB · SB limpe, BB relance, SB paie', HUISO: 'Heads-up · SB limpe, BB relance, SB paie' };
+        const tdIP = T => T.tree === 'HUISO' ? 'SB' : ['LIMP', 'SBR', 'ISO'].includes(T.tree) ? 'BB' : 'BTN';
+        const tdB = v => String(Math.round(v * 10) / 10).replace('.', ',');
+        function tdTitle(T) { const ip = tdIP(T), oop = T.opp, p = T.par;
+            const L = { first: `${oop} parle en premier → check ou mise`, x: `${oop} checke → action du ${ip}`, bet: T.role === oop ? `${oop} checke, ${ip} mise ${tdB(p)} BB → réponse du ${oop}` : `${oop} mise ${tdB(p)} BB → réponse du ${ip}`,
+                xr: `${oop} checke, ${ip} mise ${tdB(p.b)} BB, ${oop} check-raise à ${tdB(p.to)} BB → réponse du ${ip}`, xrshove: `${oop} check-raise à ${tdB(p.to)} BB, ${ip} tapis → réponse du ${oop}`, shove: `${T.role} mise ${tdB(p)} BB, relance tapis → réponse du ${T.role}`, leadallin: `${oop} mise tapis → réponse du ${ip}` };
+            return `${TD_TREE[T.tree] || T.tree} · ${L[T.kind] || T.kind}`; }
+        // ranges de départ, tirées de tes charts (poids par main)
+        function tdRanges(T, S) {
+            const ch = (f, id, a) => { try { const c = pfChart(f, S, id); return c && c.P && c.P[a] ? c.P[a] : null; } catch (e) { return null; } }, mul = (x, y) => x && y ? x.map((v, i) => v * y[i]) : null;
+            const ip = tdIP(T), oop = T.opp; let R = {};
+            if (T.tree === 'SRP') R = { BTN: ch('3M', 'T_O', 'raise'), [oop]: oop === 'BB' ? ch('3M', 'T_BRF', 'call') : ch('3M', 'T_SR', 'call') };
+            else if (T.tree === '3BP') R = { BTN: mul(ch('3M', 'T_O', 'raise'), ch('3M', 'T_RF3', 'call')), [oop]: oop === 'BB' ? ch('3M', 'T_BRF', 'raise') : null };
+            else { const f = T.tree === 'HUISO' ? 'HU' : 'BvB';
+                if (T.tree === 'LIMP') R = { SB: ch(f, 'O', 'limp'), BB: ch(f, 'B_L', 'check') };
+                else if (T.tree === 'SBR') R = { SB: ch(f, 'O', 'raise'), BB: ch(f, 'B_R', 'call') };
+                else R = { SB: mul(ch(f, 'O', 'limp'), ch(f, 'L_R', 'call')), BB: ch(f, 'B_L', 'raise') }; }
+            const str = w => { if (!w) return null; const L = []; for (let i = 0; i < 169; i++) { const v = w[i]; if (v >= .995) L.push(cname(i)); else if (v >= .01) L.push(cname(i) + ':' + (Math.round(v * 100) / 100)); } return L.join(','); };
+            return { oop: { pos: oop, s: str(R[oop]) }, ip: { pos: ip, s: str(R[ip]) } };
+        }
+        const TD_INV = T => ({ SRP: PF_CFG.R || 2, '3BP': 4.5, LIMP: 1, SBR: PF_CFG.Rb || 2.5, ISO: PF_CFG.I || 3, HUISO: PF_CFG.I || 3 })[T.tree];
+        // tes décisions postflop, regroupées en spots ; couverture par tes fichiers
+        let _tdC = null;
+        function tdSpots(hero) {
+            const key = hero + '|' + allParsedHands.length + '|' + Object.keys(gpReg()).length; if (_tdC && _tdC.key === key) return _tdC;
+            const G = new Map(); let tot = 0, cov = 0;
+            allParsedHands.forEach(h => { if (h.buyin === 0 || !h.players.includes(hero)) return; let E; try { E = gpEvents(h); } catch (e) { E = null; } if (!E) return;
+                E.forEach(ev => { if (ev.who !== hero || ev.eff > 21) return; tot++; const ok = !!gpResolve(ev); if (ok) cov++;
+                    const d = Math.max(4, Math.min(20, 2 * Math.round(ev.eff / 2))), pot = ev.pot || TD_POT[ev.tree];
+                    const pv = ev.kind === 'xr' || ev.kind === 'xrshove' ? ev.par.b : typeof ev.par === 'number' ? ev.par : 0, pct = pv ? pv / pot : 0;
+                    const bk = ev.kind === 'bet' || ev.kind === 'shove' || ev.kind === 'xr' || ev.kind === 'xrshove' ? (pv <= 1.05 ? 'm' : pct < .4 ? 's' : pct < .7 ? 'M' : 'L') : '-';
+                    const k = [ev.tree, ev.opp, ev.role, ev.kind, bk, d].join('|'); const g = G.get(k) || (G.set(k, { k, tree: ev.tree, opp: ev.opp, role: ev.role, kind: ev.kind, bk, d, n: 0, ok: 0, pars: [], tos: [], pots: [] }), G.get(k));
+                    g.n++; if (ok) g.ok++; if (pv) g.pars.push(pv); if (ev.par && ev.par.to) g.tos.push(ev.par.to); g.pots.push(pot); }); });
+            const med = a => { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+            const L = [...G.values()].map(g => { g.par = Math.round(med(g.pars) * 10) / 10; g.to = Math.round(med(g.tos) * 10) / 10; g.pot = Math.round(med(g.pots) * 10) / 10; g.miss = g.n - g.ok; return g; }).sort((a, b) => b.miss - a.miss || b.n - a.n);
+            return _tdC = { key, L, tot, cov };
+        }
+        function tdName(g) { const p = g.kind === 'xr' || g.kind === 'xrshove' ? `${g.par}-${g.to}` : g.kind === 'bet' || g.kind === 'shove' ? `${g.par}` : '0'; return `SPOT_${g.tree}_${g.opp}_${g.role}_${g.kind}_${p}_${g.d}bb`; }
+        function tdSpec(g) {
+            const T = { tree: g.tree, opp: g.opp, role: g.role, kind: g.kind, par: g.kind === 'xr' || g.kind === 'xrshove' ? { b: g.par, to: g.to } : g.par }, inv = TD_INV(T), behind = Math.max(0, g.d - inv), R = tdRanges(T, Math.min(16, g.d));
+            const sizes = g.kind === 'first' || g.kind === 'x' ? 'check, mise min (1 BB), 33 %, 50 %, 75 %, 100 %, tapis' : g.kind === 'bet' ? `sa mise fixée à ${tdB(g.par)} BB ; toi : fold, call, relance ×2, ×3, tapis` : 'fold, call';
+            return { T, title: tdTitle(T), name: tdName(g), inv, behind, R, sizes };
+        }
+        function tdText(g) { const s = tdSpec(g);
+            return [`# ${s.title} · ${g.d} BB`, `Fichier : ${s.name}.xlsx`, `Stacks de départ : ${g.d} BB · pot au flop : ${tdB(g.pot)} BB · tapis restant : ${tdB(s.behind)} BB (SPR ${tdB(s.behind / Math.max(.5, g.pot))})`,
+                `Hors position (${s.R.oop.pos}) : ${s.R.oop.s || 'pas dans ta charte : à saisir'}`, `En position (${s.R.ip.pos}) : ${s.R.ip.s || 'pas dans ta charte : à saisir'}`, `Arbre : ${s.sizes}`, `Export : rapport agrégé sur tous les flops (colonne Cards, une colonne par action, puis EV OOP et EV IP)`].join('\n'); }
+        function labTodoHtml(hero) {
+            const D = tdSpots(hero), miss = D.L.filter(g => g.miss > 0), done = D.L.filter(g => g.miss === 0), top = miss.slice(0, 25), gain = top.reduce((a, g) => a + g.miss, 0);
+            const row = (g, i) => { const s = tdSpec(g); return `<details class="rounded-xl bg-slate-900 border border-white/10 p-3"><summary class="cursor-pointer min-h-[44px] flex flex-wrap items-center gap-x-3 gap-y-1"><span class="w-6 h-6 rounded-full bg-amber-600 text-white text-xs font-black flex items-center justify-center">${i + 1}</span><span class="font-bold text-sm flex-1">${esc(s.title)} · ${g.d} BB</span><span class="text-xs text-slate-300"><b class="text-amber-300">${g.miss}</b> décisions sans fichier${g.ok ? ` (${g.ok} déjà couvertes)` : ''}</span></summary>
+                <div class="mt-2 text-sm text-slate-300 space-y-1"><div>📁 Nom du fichier : <code class="bg-slate-800 px-2 py-0.5 rounded text-amber-200 select-all">${s.name}.xlsx</code></div><div>Stacks de départ <b>${g.d} BB</b> · pot au flop <b>${tdB(g.pot)} BB</b> (préflop ${tdB(s.inv)} BB chacun) · tapis restant <b>${tdB(s.behind)} BB</b> · SPR ${tdB(s.behind / Math.max(.5, g.pot))}</div><div>Arbre : ${esc(s.sizes)}</div>
+                <div class="text-xs"><b>Hors position (${s.R.oop.pos})</b> : <span class="text-slate-400 break-all select-all">${esc(s.R.oop.s || 'pas dans ta charte : à saisir')}</span></div><div class="text-xs"><b>En position (${s.R.ip.pos})</b> : <span class="text-slate-400 break-all select-all">${esc(s.R.ip.s || 'pas dans ta charte : à saisir')}</span></div>
+                <button data-lab="tdcopy" data-i="${i}" class="mt-1 min-h-[44px] px-4 rounded-xl bg-slate-800 text-sm font-bold text-slate-200">📋 Copier ce spot</button></div></details>`; };
+            return `<div class="rounded-xl bg-slate-900 border border-white/10 p-3 mb-3"><div class="text-sm text-slate-200">Tes décisions postflop dans des spots que tes fichiers peuvent couvrir : <b>${D.tot.toLocaleString('fr-FR')}</b>, dont <b class="text-emerald-300">${D.cov.toLocaleString('fr-FR')}</b> déjà couvertes par un fichier (${Math.round(100 * D.cov / Math.max(1, D.tot))} %). Les ${top.length} spots ci-dessous en couvriraient <b class="text-amber-300">${gain.toLocaleString('fr-FR')}</b> de plus (${Math.round(100 * (D.cov + gain) / Math.max(1, D.tot))} % au total).</div>
+                <div class="flex flex-wrap items-center gap-2 mt-2"><button data-lab="tdall" class="min-h-[44px] px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">📋 Copier toute la liste</button><label class="min-h-[44px] px-4 rounded-xl bg-emerald-700 text-white text-sm font-bold flex items-center cursor-pointer">📥 Importer mes fichiers solvés<input id="tdImp" type="file" multiple accept=".xls,.xlsx" class="hidden"></label><span id="tdMsg" class="text-xs text-slate-400"></span></div>
+                <div class="text-[11px] text-slate-500 mt-2">Solve dans l'ordre : le n° 1 est le spot que tu joues le plus sans référence. Garde le nom de fichier proposé : l'app reconnaît le spot toute seule à l'import, et il apparaît aussitôt dans le Mode table (encadré 🎯 Ton solveur), l'onglet GTO postflop et les textures. Les ranges viennent de tes charts ; les tailles préflop sont celles de tes réglages.</div></div>
+                <div class="space-y-2">${top.map(row).join('')}</div>${done.length ? `<div class="text-xs text-slate-400 mt-3">Déjà couverts : ${done.slice(0, 12).map(g => esc(tdTitle({ tree: g.tree, opp: g.opp, role: g.role, kind: g.kind, par: g.kind === 'xr' || g.kind === 'xrshove' ? { b: g.par, to: g.to } : g.par })) + ' · ' + g.d + ' BB (' + g.n + ')').join(' ; ')}${done.length > 12 ? ' …' : ''}</div>` : ''}`;
+        }
+        document.addEventListener('click', e => { const b = e.target.closest('#labBox [data-lab="tdcopy"], #labBox [data-lab="tdall"]'); if (!b) return; const D = tdSpots(playerSelect.value), top = D.L.filter(g => g.miss > 0).slice(0, 25);
+            const t = b.dataset.lab === 'tdall' ? top.map((g, i) => `${i + 1}. ` + tdText(g)).join('\n\n') : tdText(top[+b.dataset.i]); const ok = () => { const o = b.textContent; b.textContent = '✓ Copié'; setTimeout(() => b.textContent = o, 1500); };
+            if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, () => { }); else { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (x) { } ta.remove(); } });
+        document.addEventListener('change', async e => { if (e.target.id !== 'tdImp') return; const f = [...e.target.files]; e.target.value = ''; if (!f.length) return; const m = document.getElementById('tdMsg'); if (m) m.textContent = 'Import…';
+            const before = Object.keys(gpImported).length; try { await gpImportFiles(f); } catch (x) { console.error(x); } _tdC = null; try { _txGv = txGv(); } catch (x) { } labRender(); const m2 = document.getElementById('tdMsg'); if (m2) m2.textContent = `${Object.keys(gpImported).length - before} fichier(s) ajouté(s).`; });
 
 </script>
 </body>
