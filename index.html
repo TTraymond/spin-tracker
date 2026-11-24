@@ -4477,7 +4477,7 @@
                 <div class="text-xs font-bold text-slate-300 mb-1">Dernières décisions</div><div class="max-h-56 overflow-auto custom-scrollbar border border-white/10 rounded-lg">${recent.map(h => `<div class="flex flex-wrap gap-3 px-3 py-1 text-xs border-b border-white/5"><span class="${h.ok ? 'text-emerald-400' : 'text-rose-400'}">${h.ok ? '✓' : '✗'}</span><span class="w-12 font-bold text-slate-200">${h.hand}</span><span class="text-slate-400 flex-1 min-w-[12rem]">${esc(h.title)}</span><span>toi : <b>${h.choice}</b></span><span>reco : <b>${h.best}</b></span>${h.adapt ? `<span class="text-amber-300">adaptation ${h.followed ? 'appliquée' : 'manquée'}</span>` : ''}${h.ok ? '' : `<span class="text-rose-300">−${String(h.loss.toFixed(2)).replace('.', ',')} BB</span>`}</div>`).join('')}</div>` : '<p class="text-xs text-slate-500">Joue des spots en mode Coach : tes décisions s\'enregistrent ici, par scénario, avec la part des adaptations que tu appliques vraiment.</p>'}</div>`;
             box.innerHTML = scen + sweep + hist;
         }
-        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
+        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed', 'lab_cfg', 'lab_srs', 'lab_log', 'lab_coach']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
         async function bkRestore(x, merge) {
             for (const k of Object.keys(x || {})) { let v = x[k]; try { const cur = await localforage.getItem(k);
                 if (merge && Array.isArray(cur) && Array.isArray(v)) v = k === 'sim_scen' ? [...cur.filter(c => !v.some(n => n.name === c.name)), ...v] : [...cur, ...v.filter(n => !cur.some(c => c.ts === n.ts && c.hand === n.hand))].sort((a, b) => a.ts - b.ts);
@@ -10063,6 +10063,375 @@
         { const _stDv = showTab; showTab = function (t) { _stDv(t); if (t === 'evo') setTimeout(() => { try { dvRender(); } catch (e) { console.error('dv', e); } }, 60); }; }
         // ---- P3 : la fiabilité aussi dans Analyse 3 min ----
         { const _ae = auExplain; auExplain = function (g) { const r = _ae(g), n = g.spotsN || 0; return r + ` <span class="whitespace-nowrap">· fiabilité ${relBadge(n)}</span>${n < 15 ? ' <span class="text-amber-300">(à confirmer : trop peu de spots de ce type)</span>' : ''}`; }; }
+
+        // ===================== 88. POSTFLOP LAB : fiche solveur, fuites postflop, entraînements, file du jour, tells de taille, outils, coach =====================
+        const LAB = { seg: 'train', st: 'all', fs: { who: 'field', fmt: 'all', pot: 'all', st: 'F', fam: 'all', ip: 'all', role: 'all' }, tl: 'f', tool: { pot: 6, stack: 12, n: 2, eq: 45, st: 'F' }, q: null, srs: {}, log: {}, coach: null, hist: [] };
+        const LAB_SZL = ['check', 'petite (< 40 %)', 'moyenne (40–70 %)', 'grosse (> 70 %)', 'tapis'], LAB_SZS = ['check', 'petite', 'moyenne', 'grosse', 'tapis'];
+        const LAB_STL = { F: 'Flop', T: 'Turn', R: 'River' }, LAB_ST3 = { F: 'au flop', T: 'au turn', R: 'à la river' };
+        const LAB_I = [1, 3, 7, 14, 30, 60];
+        const labDay = () => new Date().toISOString().slice(0, 10);
+        const labPc = v => v == null || !isFinite(v) ? '–' : Math.round(100 * v) + ' %';
+        const labF1 = v => (v >= 0 ? '+' : '') + (Math.round(v * 10) / 10).toLocaleString('fr-FR');
+        const labTs = h => { const d = Date.parse(String(h.ts || '').replace(/\//g, '-').replace(' ', 'T') + 'Z'); return isFinite(d) ? d : 0; };
+        (async () => { try { const c = await localforage.getItem('lab_cfg'); if (c) { Object.assign(LAB.fs, c.fs || {}); Object.assign(LAB.tool, c.tool || {}); if (c.st) LAB.st = c.st; }
+            LAB.srs = (await localforage.getItem('lab_srs')) || {}; LAB.log = (await localforage.getItem('lab_log')) || {}; const co = (await localforage.getItem('lab_coach')) || {}; LAB.coach = co.cur || null; LAB.hist = co.hist || []; } catch (e) { } })();
+        const labSave = () => { try { localforage.setItem('lab_cfg', { fs: LAB.fs, tool: LAB.tool, st: LAB.st }); localforage.setItem('lab_srs', LAB.srs); localforage.setItem('lab_log', LAB.log); localforage.setItem('lab_coach', { cur: LAB.coach, hist: LAB.hist }); } catch (e) { } };
+
+        // ---- lecture d'une main, action par action, avec le pot et les tapis à chaque instant ----
+        const _labH = new WeakMap();
+        function labParse(h) { if (_labH.has(h)) return _labH.get(h); let r = null; try { r = labParse0(h); } catch (e) { r = null; } _labH.set(h, r); return r; }
+        function labParse0(h) {
+            const n = h.players.length; if ((n !== 2 && n !== 3) || h.buyin === 0) return null;
+            const bd = (h.board || '').split(' ').filter(Boolean); if (bd.length < 3 || !(h.flop && h.flop.length)) return null;
+            const bb = bbOf(h); if (!bb) return null; const st = trSeatOrder(h);
+            const pre = (h.preflop || []).map(l => { const m = l.match(TX_RE); return m ? { p: m[1], k: m[2], a: +(m[3] || 0), to: +(m[4] || 0), all: !!m[5] } : null; }).filter(Boolean);
+            if (pre.some(x => x.all)) return null;
+            const ante = {}, put = {}; h.players.forEach(p => { ante[p] = 0; put[p] = 0; });
+            (h.blinds || []).forEach(l => { let m = l.match(/^(.+?) posts ante (\d+)/); if (m && m[1] in ante) { ante[m[1]] += +m[2]; return; } m = l.match(/^(.+?) posts (?:small blind|big blind) (\d+)/); if (m && m[1] in put) put[m[1]] += +m[2]; });
+            let agg = null; const fold = new Set(), preAct = {};
+            pre.forEach(x => { if (x.k === 'folds') fold.add(x.p); else if (x.k === 'calls' || x.k === 'bets') put[x.p] += x.a; else if (x.k === 'raises') { put[x.p] = x.to; agg = x.p; } if (x.k === 'bets') agg = x.p; if (x.k !== 'folds') preAct[x.p] = x.k; });
+            const tot = p => ante[p] + put[p]; let P = h.players.reduce((s, p) => s + tot(p), 0) / bb;
+            const ord = (n === 3 ? [st.sb, st.bb, st.btn] : [st.bb, st.sb]).filter(p => p && !fold.has(p)); if (ord.length < 2) return null;
+            const posOf = p => n === 2 ? (p === st.sb ? 'SB' : 'BB') : p === st.btn ? 'BTN' : p === st.sb ? 'SB' : 'BB';
+            const S = {}; ord.forEach(p => S[p] = (h.stacks[p] - tot(p)) / bb);
+            const fmt = n === 2 ? 'HU' : ord.length === 3 ? '3M3' : '3M2', potT = agg ? 'R' : 'L', fam = txFamOf3(bd.slice(0, 3)), roleOf = p => p === agg ? 'A' : potT === 'L' ? 'L' : 'C';
+            const E = [], live = new Set(ord);
+            [h.flop, h.turn, h.river].forEach((ls, si) => {
+                if (!ls || !ls.length || bd.length < 3 + si || live.size < 2) return; const board = bd.slice(0, 3 + si), sn = 'FTR'[si], pu = {}, acted = new Set(), since = new Set(); let cur = 0, nA = 0, lastAgg = null, lastSz = 0, lastFrac = 0;
+                ls.forEach(l => { const m = l.match(TX_RE); if (!m) return; const p = m[1], k = m[2], a = +(m[3] || 0) / bb, to = +(m[4] || 0) / bb, all = !!m[5]; if (!live.has(p)) return;
+                    const potB = P + Object.values(pu).reduce((x, y) => x + y, 0), mine = pu[p] || 0, lv = ord.filter(q => live.has(q));
+                    const e = { st: sn, si, p, k, pot: potB, call: Math.max(0, cur - mine), cur, nA, first: !acted.has(p), all, board, stack: S[p] - mine, eff: Math.min(...lv.map(q => S[q] - (pu[q] || 0))), ip: lv[lv.length - 1] === p, role: roleOf(p), bettor: lastAgg, nl: lv.length, fsz: cur > 0 ? lastSz : 0, ffrac: cur > 0 ? lastFrac : 0, resp: cur > 0 && nA === 1 && !since.has(p) };
+                    if (k === 'bets') { e.amt = a; e.frac = a / Math.max(.5, potB); e.sz = txSzc(a, potB, all); }
+                    else if (k === 'raises') { e.amt = to; e.sz = all ? 4 : 3; }
+                    e.facedRaise = cur > 0 && nA >= 2 && mine > 0; E.push(e); acted.add(p); since.add(p);
+                    if (k === 'bets') { pu[p] = mine + a; cur = pu[p]; nA++; lastAgg = p; lastSz = e.sz; lastFrac = e.frac; since.clear(); since.add(p); }
+                    else if (k === 'raises') { since.clear(); since.add(p); pu[p] = to; lastFrac = (to - cur) / Math.max(.5, potB + cur - mine); cur = to; nA++; lastAgg = p; lastSz = e.sz; }
+                    else if (k === 'calls') pu[p] = mine + a; else if (k === 'folds') live.delete(p);
+                });
+                ord.forEach(p => { S[p] -= pu[p] || 0; }); P += Object.values(pu).reduce((x, y) => x + y, 0);
+            });
+            return { h, bd, fmt, potT, fam, agg, ord, posOf, E, bb, preAct, n };
+        }
+        const LAB_MC = { s: '#e2e8f0', h: '#f87171', d: '#60a5fa', c: '#4ade80' }, labMini = c => `<span class="font-bold" style="color:${LAB_MC[c[1]]}">${c[0] === 'T' ? '10' : c[0]}${TR_SUIT[c[1]][0]}</span>`;
+        const labCatB = (c, st) => !c ? null : c === 'fort' || c === 'ovp' || c === 'top' ? 'v' : c === 'mid' || (c === 'draw' && st !== 'R') ? 'm' : 'a';
+
+        // ---- index : décisions du field et les tiennes, tells de taille ----
+        let _labI = null;
+        function labIndex(hero) {
+            const key = hero + '|' + allParsedHands.length; if (_labI && _labI.key === key) return _labI;
+            const FX = [], FF = [], FR = [], TL = [], D = [];
+            allParsedHands.forEach(h => {
+                const L = labParse(h); if (!L) return; const sh = h.shown || {}, heroIn = h.hole && h.hole[0] === hero && h.players.includes(hero);
+                L.E.forEach((e, i) => {
+                    const me = e.p === hero, base = { st: e.st, fmt: L.fmt, pot: L.potT, fam: L.fam, ip: e.ip ? 1 : 0, role: e.role, me, p: e.p };
+                    if (e.first && e.cur === 0) FX.push({ ...base, v: e.k === 'bets' ? e.sz : 0 });
+                    else if (e.resp && e.nl === 2) FF.push({ ...base, sz: e.fsz, v: e.k === 'folds' ? 0 : e.k === 'calls' ? 1 : 2 });
+                    else if (e.facedRaise && e.nl === 2) FR.push({ ...base, v: e.k === 'folds' ? 0 : e.k === 'calls' ? 1 : 2 });
+                    if (e.k === 'bets' && e.nA === 0 && !me) { const hc = sh[e.p]; if (hc) { const c = labCatB(txCat(hc, e.board), e.st); if (c) TL.push({ st: e.st, sz: e.sz, c, p: e.p, fam: L.fam }); } }
+                    if (me && heroIn && e.nl === 2 && ((e.first && e.cur === 0) || e.resp)) {
+                        const vil = L.ord.find(q => q !== hero && L.E.slice(0, i).concat([e]).every(x => !(x.p === q && x.k === 'folds')));
+                        D.push({ h, L, e, i, st: e.st, type: e.cur === 0 ? 'free' : 'face', hc: h.hole[1], board: e.board, vil, key: h.id + '|' + e.st, t: labTs(h) });
+                    }
+                });
+            });
+            // repères du field : fold face à une mise (par rue et par taille), fréquence de mise, fold face à une relance
+            const agg = (L, f) => { const o = { n: 0, c: [0, 0, 0, 0, 0] }; L.forEach(x => { if (f(x)) { o.n++; o.c[x.v]++; } }); return o; };
+            const fld = FF.filter(x => !x.me), fx = FX.filter(x => !x.me), fr = FR.filter(x => !x.me), REF = { fold: {}, bet: {}, fr: {} };
+            ['F', 'T', 'R'].forEach(st => { const all = agg(fld, x => x.st === st); REF.fold[st] = {}; for (let s = 1; s <= 4; s++) { const o = agg(fld, x => x.st === st && x.sz === s), K = 20, pr = all.n ? all.c[0] / all.n : .45; REF.fold[st][s] = { n: o.n, v: (o.c[0] + K * pr) / (o.n + K) }; }
+                const b = agg(fx, x => x.st === st); REF.bet[st] = { n: b.n, v: b.n ? 1 - b.c[0] / b.n : .45 }; const r = agg(fr, x => x.st === st); REF.fr[st] = { n: r.n, v: (r.c[0] + 10 * .3) / (r.n + 10) }; });
+            D.forEach(d => { d.cat = txCat(d.hc, d.board); try { d.nb = (endStacks(d.h)[hero] - d.h.stacks[hero]) / d.L.bb; } catch (e) { d.nb = 0; } });
+            _labI = { key, FX, FF, FR, TL, D, REF, map: new Map(D.map(d => [d.key, d])) }; return _labI;
+        }
+
+        // ---- moteur : la valeur de chaque option, avec ta main réelle contre une range estimée ----
+        function labRange(d, IX) {
+            const L = d.L, v = d.vil, pa = L.preAct[v], pc = xsPct(), w = new Float64Array(169);
+            const fr = pa === 'raises' ? (L.potT === 'R' ? .55 : .5) : pa === 'calls' ? (L.potT === 'R' ? .7 : .9) : 1;
+            for (let i = 0; i < 169; i++) w[i] = pc[i] <= fr * 100 ? 1 : .08;
+            const dead = new Set([...d.board, ...d.hc.split(' ')]); let R = mpRangeCombos(w, dead);
+            for (let j = 0; j < d.i; j++) { const x = L.E[j]; if (x.p !== v || x.st === d.st) continue;
+                if (x.k === 'bets' || x.k === 'raises') R = mpKeepTop(R, x.board, Math.min(1, IX.REF.bet[x.st].v + .15));
+                else if (x.k === 'calls') R = mpKeepTop(R, x.board, 1 - IX.REF.fold[x.st][x.fsz || 2].v); }
+            if (d.type === 'face') R = mpKeepTop(R, d.board, Math.min(1, IX.REF.bet[d.st].v + .15));
+            return R;
+        }
+        function labEval(d) {
+            if (d.ev) return d.ev; const IX = _labI, e = d.e, pot = Math.max(.5, e.pot), eff = Math.max(0, e.eff), R = labRange(d, IX), H = [d.hc], k = d.key, N = 700;
+            const eq = mpEqMC(H, [R], d.board, N, 'L|a|' + k); const o = [];
+            if (d.type === 'free') {
+                o.push({ l: 'Check', g: 'x', ev: eq * pot });
+                const sizes = [[.33, 'Mise 33 %', 1], [.66, 'Mise 66 %', 2]]; if (eff / pot <= 2.5 && eff > .3) sizes.push([eff / pot, 'Tapis', 4]);
+                sizes.forEach(([s, l, c]) => { const b = Math.min(s * pot, eff); if (b <= 0) return; const F = IX.REF.fold[d.st][c === 4 ? (b / pot > .7 ? 4 : 3) : c].v;
+                    const eqC = mpEqMC(H, [mpKeepTop(R, d.board, 1 - F)], d.board, N, 'L|c' + c + '|' + k); o.push({ l, g: 'b', ev: F * pot + (1 - F) * (eqC * (pot + 2 * b) - b), F, eqC, b }); });
+            } else {
+                const b = e.call; o.push({ l: 'Couche', g: 'f', ev: 0 });
+                o.push({ l: 'Paie', g: 'c', ev: eq * (pot + b) - b, need: b / (pot + b) });
+                const A = Math.min(e.stack, e.eff); if (A > b * 1.8 && A <= 3.2 * pot) { const F2 = IX.REF.fr[d.st].v, eqT = mpEqMC(H, [mpKeepTop(R, d.board, 1 - F2)], d.board, N, 'L|t|' + k);
+                    o.push({ l: 'Tapis', g: 'r', ev: F2 * pot + (1 - F2) * (eqT * (pot - b + 2 * A) - A), F: F2, eqC: eqT }); }
+            }
+            const best = o.reduce((a, x) => x.ev > a.ev ? x : a, o[0]);
+            const k2 = e.k, did = d.type === 'free' ? (k2 === 'checks' ? 'Check' : e.sz === 4 ? (o.find(x => x.l === 'Tapis') ? 'Tapis' : 'Mise 66 %') : e.sz === 1 ? 'Mise 33 %' : 'Mise 66 %') : k2 === 'folds' ? 'Couche' : k2 === 'calls' ? 'Paie' : (o.find(x => x.l === 'Tapis') ? 'Tapis' : 'Paie');
+            const share = (() => { let t = 0; R.forEach(x => t += x[2]); return t / 1326; })();
+            d.ev = { o, best, eq, did, pot, eff, share }; return d.ev;
+        }
+        const labCost = (d, l) => { const V = labEval(d), x = V.o.find(y => y.l === l); return x ? V.best.ev - x.ev : V.best.ev; };
+
+        // ---- fuites postflop : value manquée et bluffs abandonnés ----
+        function labLeaks(hero) {
+            const IX = labIndex(hero), sh = h => h.shown || {};
+            const ipChk = IX.D.filter(d => d.type === 'free' && d.e.ip && d.e.k === 'checks' && ['fort', 'ovp', 'top'].includes(d.cat));
+            const vm = ipChk.filter(d => { const hc = sh(d.h)[d.vil]; if (!hc) return false; const c = txCat(hc, d.L.bd); return c && c !== 'air' && !(c === 'draw'); });
+            const rvAir = IX.D.filter(d => d.type === 'free' && d.st === 'R' && d.e.k === 'checks' && labCatB(d.cat, 'R') === 'a');
+            const ga = rvAir.filter(d => d.nb < 0);
+            const rvBetAir = IX.D.filter(d => d.type === 'free' && d.st === 'R' && d.e.k === 'bets' && labCatB(d.cat, 'R') === 'a');
+            return { ipChk, vm, rvAir, ga, rvBetAir, fR: IX.REF.fold.R };
+        }
+
+        // ---- file du jour (répétition espacée) ----
+        function labGrade(d, ok) {
+            const k = d.key, o = LAB.srs[k] || { b: 0, n: 0, ok: 0 }, first = !LAB.srs[k]; o.b = ok ? Math.min(LAB_I.length - 1, (o.n ? o.b + 1 : 1)) : 0; o.n++; if (ok) o.ok++;
+            o.due = Date.now() + LAB_I[o.b] * 864e5 - 3600e3; LAB.srs[k] = o; if (first) { const t = labDay(); LAB.log[t] = (LAB.log[t] || 0) + 1; } labSave();
+        }
+        function labDaily(hero) {
+            const IX = labIndex(hero), now = Date.now(), due = Object.entries(LAB.srs).filter(([k, o]) => o.due <= now && IX.map.has(k)).sort((a, b) => a[1].due - b[1].due).map(([k]) => IX.map.get(k));
+            const cap = Math.max(0, 10 - (LAB.log[labDay()] || 0)), Lk = labLeaks(hero), flag = new Set([...Lk.vm, ...Lk.ga].map(d => d.key));
+            const fresh = IX.D.filter(d => !LAB.srs[d.key] && (flag.has(d.key) || d.nb < -3)).sort((a, b) => (flag.has(b.key) ? 50 : 0) - (flag.has(a.key) ? 50 : 0) + a.nb - b.nb).slice(0, cap);
+            return { due, fresh, list: [...due, ...fresh] };
+        }
+
+        // ---- entraînements ----
+        const LAB_G = {
+            daily: { t: '🔁 File du jour', d: 'Tes mains à revoir aujourd\'hui, puis 10 nouvelles par jour choisies parmi tes plus grosses pertes, value manquée et bluffs abandonnés d\'abord. Une main ratée revient demain, une main réussie revient de plus en plus tard (3, 7, 14, 30 jours).' },
+            bc: { t: '⚡ Miser ou checker', d: 'Tes mains où personne n\'a misé avant toi. 6 secondes pour choisir : miser ou checker. La correction chiffre chaque option en BB avec ta main contre sa range estimée et le fold réel du field à cette taille.' },
+            mdf: { t: '🛡 Défends le c-bet', d: 'Tes mains où l\'adversaire c-bet au flop. Couche, paie ou tapis : chaque option chiffrée avec ton équité contre sa range de c-bet et sa fréquence de fold face à un tapis.' },
+            sv: { t: '❤️ Survie', d: '15 décisions tirées de tes mains, sur les trois rues. 3 vies : une décision qui coûte plus d\'un quart du pot fait perdre une vie.' }
+        };
+        function labPick(hero, g) {
+            const IX = labIndex(hero), stOk = d => LAB.st === 'all' || d.st === LAB.st, sh = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+            if (g === 'daily') return labDaily(hero).list;
+            if (g === 'bc') return sh(IX.D.filter(d => d.type === 'free' && stOk(d))).slice(0, 12);
+            if (g === 'mdf') return sh(IX.D.filter(d => d.type === 'face' && d.st === 'F' && d.e.bettor === d.L.agg && d.e.bettor !== hero)).slice(0, 12);
+            return sh(IX.D.filter(stOk)).slice(0, 15);
+        }
+        function labStart(g) {
+            const hero = playerSelect.value; const L = labPick(hero, g);
+            if (!L.length) { alert(g === 'daily' ? 'Rien à revoir aujourd\'hui : reviens demain, ou lance un autre exercice.' : 'Pas assez de mains pour cet exercice avec ce filtre.'); return; }
+            LAB.q = { g, L, i: 0, lives: 3, ok: 0, cost: 0, ans: null, t0: Date.now() }; labRender();
+        }
+        let _labTm = null;
+        function labQHtml() {
+            const Q = LAB.q, d = Q.L[Q.i], e = d.e, hero = playerSelect.value, V = labEval(d), L = d.L, bin = Q.g === 'bc';
+            const cards = x => x.map(c => trCard(c, true)).join(''), vpos = L.posOf(d.vil), mpos = L.posOf(hero);
+            const prev = L.E.slice(0, d.i).filter(x => x.st !== d.st || true).map(x => `${x.p === hero ? 'Toi' : 'Lui'} ${x.k === 'checks' ? 'check' : x.k === 'folds' ? 'couche' : x.k === 'calls' ? 'paie' : x.k === 'bets' ? 'mise ' + Math.round(100 * x.frac) + ' %' + (x.all ? ' (tapis)' : '') : 'relance' + (x.all ? ' tapis' : '')}`);
+            const byS = {}; L.E.slice(0, d.i).forEach((x, j) => { (byS[x.st] = byS[x.st] || []).push(prev[j]); });
+            const line = ['F', 'T', 'R'].filter(s => byS[s]).map(s => `<b>${LAB_STL[s]}</b> : ${byS[s].join(', ')}`).join(' · ') || 'Tu parles en premier.';
+            const opts = bin ? [{ l: 'Check', g: 'x' }, { l: 'Miser', g: 'b' }] : V.o;
+            const head = `<div class="flex items-center justify-between gap-2 flex-wrap mb-2"><div class="font-bold">${LAB_G[Q.g].t} · ${Q.i + 1}/${Q.L.length}</div><div class="text-sm text-slate-300">${Q.g === 'sv' ? '❤️'.repeat(Math.max(0, Q.lives)) + '🖤'.repeat(3 - Math.max(0, Q.lives)) + ' · ' : ''}${Q.ok} bonnes réponses${bin && !Q.ans ? ` · <span id="labTm" class="font-bold text-amber-300">6</span> s` : ''}</div></div>`;
+            const ctx = `<div class="rounded-2xl bg-emerald-950/40 border border-emerald-500/30 p-4"><div class="flex flex-wrap items-center gap-x-6 gap-y-3"><div><div class="text-[10px] uppercase text-slate-400 font-bold mb-1">${LAB_STL[d.st]}</div><div class="flex gap-1">${cards(d.board)}</div></div><div><div class="text-[10px] uppercase text-slate-400 font-bold mb-1">Ta main</div><div class="flex gap-1">${cards(d.hc.split(' '))}</div></div>
+                <div class="text-sm text-slate-200 space-y-0.5"><div>Pot <b>${simF1(V.pot)} BB</b> · tapis effectif <b>${simF1(V.eff)} BB</b>${d.type === 'face' ? ` · il mise <b>${simF1(e.call)} BB</b> (${Math.round(100 * e.ffrac)} %)` : ''}</div><div>${L.fmt === 'HU' ? 'Heads-up' : '3-max'} · toi ${mpos} ${e.ip ? '(en position)' : '(hors position)'} contre ${vpos} · pot ${L.potT === 'R' ? 'relancé' : 'limpé'}${L.agg ? ` par ${L.agg === hero ? 'toi' : 'lui'}` : ''}</div><div class="text-xs text-slate-400">${line}</div></div></div></div>`;
+            let body;
+            if (!Q.ans) body = `<div class="grid gap-2 mt-3" style="grid-template-columns:repeat(${opts.length},minmax(0,1fr))">${opts.map(o => `<button data-lab="ans" data-v="${esc(o.l)}" class="min-h-[60px] rounded-2xl text-lg font-black ${o.g === 'f' ? 'bg-slate-700' : o.g === 'x' || o.g === 'c' ? 'bg-sky-700' : 'bg-rose-700'} text-white">${o.l}</button>`).join('')}</div>`;
+            else { const A = Q.ans, bestG = V.best.g, rows = V.o.map(o => `<tr class="border-t border-white/5 ${o === V.best ? 'text-emerald-300 font-bold' : ''}"><td class="py-1.5 pr-3">${o.l}${o === V.best ? ' ✓' : ''}</td><td class="px-2 text-right">${labF1(o.ev)} BB</td><td class="px-2 text-xs text-slate-400">${o.F != null ? `il folde ${labPc(o.F)} · ton équité ${labPc(o.eqC)} quand il paie` : o.need != null ? `il te faut ${labPc(o.need)} d'équité` : `ton équité ${labPc(V.eq)} contre sa range`}</td></tr>`).join('');
+                body = `<div class="mt-3 rounded-2xl ${A.ok ? 'bg-emerald-900/40 border-emerald-500/40' : 'bg-rose-900/40 border-rose-500/40'} border p-3"><div class="text-lg font-black">${A.ok ? '✅ Bonne décision' : A.v ? '❌ Pas la meilleure' : '⏱ Temps écoulé'}${A.v ? ` · tu choisis ${esc(A.v)}` : ''}${!A.ok && A.cost > 0 ? ` <span class="text-sm font-normal text-slate-300">(coûte ${simF1(A.cost)} BB)</span>` : ''}</div>
+                    <table class="w-full text-sm mt-2"><tbody>${rows}</tbody></table>
+                    <div class="text-sm text-slate-300 mt-2">Ton équité contre sa range : <b>${labPc(V.eq)}</b> (${labPc(V.share)} des mains possibles). En vrai, tu as joué <b>${V.did}</b>${V.did !== V.best.l ? ` (écart ${simF1(labCost(d, V.did))} BB)` : ''} · résultat de la main <b class="${d.nb >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${labF1(d.nb)} BB</b>.</div>
+                    <div class="text-[11px] text-slate-500 mt-1">Repère chiffré, pas un solveur : sa range est estimée d'après sa ligne (préflop puis rue par rue) et le fold vient de ton field à cette rue et à cette taille. La réalisation d'équité n'est pas modélisée.</div></div>
+                    <div class="grid grid-cols-2 gap-2 mt-3"><button data-lab="replay" class="min-h-[52px] rounded-2xl bg-slate-800 font-bold text-slate-200">🎬 Revoir la main</button><button data-lab="next" class="min-h-[52px] rounded-2xl bg-indigo-600 font-black text-white">${Q.i + 1 >= Q.L.length || (Q.g === 'sv' && Q.lives <= 0) ? 'Terminer' : 'Suivante ▶'}</button></div>`; }
+            return head + ctx + body + `<button data-lab="quit" class="mt-3 text-sm text-slate-400 underline min-h-[44px]">Quitter l'exercice</button>`;
+        }
+        function labAnswer(v) {
+            const Q = LAB.q; if (!Q || Q.ans) return; clearInterval(_labTm); const d = Q.L[Q.i], V = labEval(d), pot = V.pot;
+            let ok, cost;
+            if (Q.g === 'bc') { const bestB = V.o.filter(o => o.g === 'b').reduce((a, o) => !a || o.ev > a.ev ? o : a, null), ch = v === 'Check' ? V.o[0] : v === 'Miser' ? bestB : null; cost = ch ? V.best.ev - ch.ev : V.best.ev - Math.min(...V.o.map(o => o.ev)); ok = !!ch && cost <= .08 * pot + .05; }
+            else { const ch = V.o.find(o => o.l === v); cost = V.best.ev - ch.ev; ok = cost <= .08 * pot + .05; }
+            Q.ans = { v, ok, cost }; if (ok) Q.ok++; Q.cost += Math.max(0, cost); if (Q.g === 'sv' && cost > .25 * pot) Q.lives--;
+            labGrade(d, ok); labRender();
+        }
+        function labNext() {
+            const Q = LAB.q; Q.i++; Q.ans = null;
+            if (Q.i >= Q.L.length || (Q.g === 'sv' && Q.lives <= 0)) { Q.done = true; } labRender();
+        }
+
+        // ---- fiche solveur (verrouillage des fréquences du field) ----
+        function labFsFilter(x) { const F = LAB.fs; return (F.who === 'me') === x.me && x.st === F.st && (F.fmt === 'all' || x.fmt === F.fmt) && (F.pot === 'all' || x.pot === F.pot) && (F.fam === 'all' || x.fam === F.fam) && (F.ip === 'all' || String(x.ip) === F.ip) && (F.role === 'all' || x.role === F.role); }
+        function labFsData(hero) {
+            const IX = labIndex(hero), cnt = (L, n) => { const o = { n: 0, c: new Array(n).fill(0) }; L.forEach(x => { if (labFsFilter(x)) { o.n++; o.c[x.v]++; } }); return o; };
+            const fx = cnt(IX.FX, 5), ff = [1, 2, 3, 4].map(s => ({ s, ...cnt(IX.FF.filter(x => x.sz === s), 3) })), fr = cnt(IX.FR, 3); return { fx, ff, fr };
+        }
+        function labFsText(Dt) {
+            const F = LAB.fs, fam = F.fam === 'all' ? 'tous flops' : (TXFAM.find(x => x.k === F.fam) || {}).l, p = (o, i) => o.n ? Math.round(100 * o.c[i] / o.n) + ' %' : '–';
+            const hdr = `${F.who === 'me' ? 'Toi' : 'Field'} · ${{ all: 'tous formats', HU: 'heads-up', '3M2': '3-max à 2 joueurs', '3M3': '3 joueurs' }[F.fmt]} · ${{ all: 'tous pots', R: 'pot relancé', L: 'pot limpé' }[F.pot]} · ${LAB_STL[F.st]} · ${fam} · ${{ all: 'IP et OOP', 1: 'en position', 0: 'hors position' }[F.ip]} · ${{ all: 'tous rôles', A: 'relanceur préflop', C: 'défenseur', L: 'pot limpé' }[F.role]}`;
+            const l1 = `Sans mise devant lui (${Dt.fx.n} obs.) : check ${p(Dt.fx, 0)} · mise < 40 % ${p(Dt.fx, 1)} · 40–70 % ${p(Dt.fx, 2)} · > 70 % ${p(Dt.fx, 3)} · tapis ${p(Dt.fx, 4)}`;
+            const l2 = Dt.ff.filter(o => o.n).map(o => `Face à une mise ${LAB_SZS[o.s]} (${o.n} obs.) : fold ${p(o, 0)} · call ${p(o, 1)} · relance ${p(o, 2)}`).join('\n');
+            const l3 = Dt.fr.n ? `Sa mise relancée (${Dt.fr.n} obs.) : fold ${p(Dt.fr, 0)} · call ${p(Dt.fr, 1)} · relance ${p(Dt.fr, 2)}` : '';
+            return [hdr, l1, l2, l3].filter(Boolean).join('\n');
+        }
+        function labFsHtml(hero) {
+            const F = LAB.fs, Dt = labFsData(hero), chip = (k, v, l) => `<button data-lab="fs" data-k="${k}" data-v="${v}" class="min-h-[40px] px-3 rounded-lg text-xs font-bold ${String(F[k]) === String(v) ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`;
+            const row = (lab, k, arr) => `<div class="flex flex-wrap items-center gap-1.5"><span class="text-[10px] uppercase text-slate-400 font-bold w-20">${lab}</span>${arr.map(([v, l]) => chip(k, v, l)).join('')}</div>`;
+            const bar = (o, labs, cols) => !o.n ? '<div class="text-sm text-slate-500">Aucune observation.</div>' : `<div class="flex h-9 rounded-lg overflow-hidden">${o.c.map((c, i) => c ? `<div class="${cols[i]} flex items-center justify-center text-[11px] font-bold text-white" style="width:${100 * c / o.n}%" title="${labs[i]} ${Math.round(100 * c / o.n)} %">${c / o.n >= .08 ? Math.round(100 * c / o.n) + ' %' : ''}</div>` : '').join('')}</div><div class="flex flex-wrap gap-x-3 text-[11px] text-slate-400 mt-1">${o.c.map((c, i) => `<span>${labs[i]} <b class="text-slate-200">${Math.round(100 * c / o.n)} %</b></span>`).join('')}<span>· ${o.n} obs. ${relBadge(o.n)}</span></div>`;
+            const C5 = ['bg-slate-600', 'bg-amber-600', 'bg-orange-600', 'bg-rose-600', 'bg-fuchsia-700'], C3 = ['bg-slate-600', 'bg-sky-600', 'bg-rose-600'];
+            return `<div class="space-y-1.5 mb-3">${row('Qui', 'who', [['field', 'Field'], ['me', 'Toi']])}${row('Rue', 'st', [['F', 'Flop'], ['T', 'Turn'], ['R', 'River']])}${row('Format', 'fmt', [['all', 'Tous'], ['HU', 'Heads-up'], ['3M2', '3-max à 2'], ['3M3', '3 joueurs']])}${row('Pot', 'pot', [['all', 'Tous'], ['R', 'Relancé'], ['L', 'Limpé']])}
+                ${row('Rôle', 'role', [['all', 'Tous'], ['A', 'Relanceur préflop'], ['C', 'Défenseur'], ['L', 'Pot limpé']])}${row('Position', 'ip', [['all', 'Tous'], ['1', 'En position'], ['0', 'Hors position']])}${row('Flop', 'fam', [['all', 'Tous'], ...TXFAM.map(f => [f.k, f.l])])}</div>
+                <div class="grid gap-3 xl:grid-cols-2"><div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold text-sm mb-2">Quand il parle sans mise devant lui</div>${bar(Dt.fx, LAB_SZL, C5)}</div>
+                <div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold text-sm mb-2">Quand sa mise est relancée</div>${bar(Dt.fr, ['fold', 'call', 'relance'], C3)}</div></div>
+                <div class="rounded-xl bg-slate-900 border border-white/10 p-3 mt-3"><div class="font-bold text-sm mb-2">Face à une mise, selon la taille</div><div class="space-y-3">${Dt.ff.map(o => `<div><div class="text-xs text-slate-300 mb-1">Mise ${LAB_SZL[o.s]}</div>${bar(o, ['fold', 'call', 'relance'], C3)}</div>`).join('')}</div></div>
+                <div class="rounded-xl bg-slate-900 border border-white/10 p-3 mt-3"><div class="flex items-center justify-between gap-2 mb-2"><div class="font-bold text-sm">À recopier dans le solveur (node-lock)</div><button data-lab="copy" class="min-h-[44px] px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">📋 Copier</button></div><pre id="labFsTxt" class="text-[12px] text-slate-200 whitespace-pre-wrap">${esc(labFsText(Dt))}</pre>
+                <div class="text-[11px] text-slate-500 mt-2">Règle les filtres pour coller au spot que tu solves (voir ta feuille « Solves postflop spins »). Verrouille ces fréquences sur le nœud du field, puis laisse le solveur calculer ta meilleure réponse : c'est ce qui rapporte contre ce field, à comparer avec l'équilibre. Sous 15 observations, garde l'équilibre.</div></div>`;
+        }
+
+        // ---- tells de taille ----
+        function labTells(hero, who, st) {
+            const IX = labIndex(hero); let tg = null; if (who && who !== 'f') { try { tg = plNames(hero).tg; } catch (e) { } }
+            const ok = x => !who || who === 'f' ? true : who.startsWith('p:') ? x.p === who.slice(2) : tg && (tg[x.p] || []).includes(who);
+            const out = {}; ['F', 'T', 'R'].forEach(s => { if (st && s !== st) return; out[s] = [1, 2, 3, 4].map(z => { const L = IX.TL.filter(x => x.st === s && x.sz === z && ok(x)); return { z, n: L.length, v: L.filter(x => x.c === 'v').length, m: L.filter(x => x.c === 'm').length, a: L.filter(x => x.c === 'a').length }; }); });
+            return out;
+        }
+        function labTlHtml(hero) {
+            let tags = []; try { const tg = plNames(hero).tg, c = {}; Object.values(tg).forEach(a => a.forEach(t => c[t] = (c[t] || 0) + 1)); tags = Object.keys(c).sort((a, b) => c[b] - c[a]).slice(0, 14); } catch (e) { }
+            const T = labTells(hero, LAB.tl), cell = o => !o.n ? '<td class="px-2 text-center text-slate-600">–</td>' : `<td class="px-2 py-2"><div class="flex h-6 rounded overflow-hidden min-w-[110px]"><div class="bg-emerald-600" style="width:${100 * o.v / o.n}%"></div><div class="bg-amber-500" style="width:${100 * o.m / o.n}%"></div><div class="bg-rose-600" style="width:${100 * o.a / o.n}%"></div></div><div class="text-[11px] text-slate-300 mt-0.5"><b class="text-emerald-300">${labPc(o.v / o.n)}</b> value · <b class="text-rose-300">${labPc(o.a / o.n)}</b> ${'air'} · ${o.n} ${relDot(o.n)}</div></td>`;
+            return `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[10px] uppercase text-slate-400 font-bold">Qui mise</span>${[['f', 'Field'], ...tags.map(t => [t, t])].map(([v, l]) => `<button data-lab="tl" data-v="${esc(v)}" class="min-h-[40px] px-3 rounded-lg text-xs font-bold ${LAB.tl === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${esc(l)}</button>`).join('')}</div>
+                <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-[10px] uppercase text-slate-400"><th class="text-left">Il mise…</th>${[1, 2, 3, 4].map(z => `<th class="px-2">${LAB_SZL[z]}</th>`).join('')}</tr></thead><tbody>${Object.entries(T).map(([s, R]) => `<tr class="border-t border-white/5"><td class="pr-3 font-bold">${LAB_STL[s]}</td>${R.map(cell).join('')}</tr>`).join('')}</tbody></table></div>
+                <div class="text-[11px] text-slate-500 mt-2"><span class="text-emerald-300">Value</span> = top paire ou mieux · <span class="text-amber-300">orange</span> = paire moyenne ou tirage · <span class="text-rose-300">air</span> = rien (à la river : tirage raté compris). Mesuré sur ses mises montrées à l'abattage : ses bluffs qui font folder ne se voient pas, la part d'air réelle est donc un peu plus haute. Ces chiffres apparaissent aussi dans le conseil du Mode table.</div>`;
+        }
+
+        // ---- outils : planificateur de tapis et EV par taille ----
+        const labGeo = (pot, stack, n) => n < 1 || stack <= 0 ? 0 : (Math.pow(1 + 2 * stack / pot, 1 / n) - 1) / 2;
+        function labToolHtml(hero) {
+            const T = LAB.tool, IX = labIndex(hero), pot = Math.max(.5, +T.pot || 1), stack = Math.max(0, +T.stack || 0), inp = (k, l, step) => `<label class="text-xs text-slate-400">${l}<input data-lab="tool" data-k="${k}" type="number" inputmode="decimal" step="${step}" value="${T[k]}" class="sel block w-24 min-h-[44px] mt-1"></label>`;
+            const geo = [1, 2, 3].map(n => { const r = labGeo(pot, stack, n); let P = pot, S = stack; const st = []; for (let i = 0; i < n; i++) { const b = Math.min(S, r * P); st.push({ b, P }); P += 2 * b; S -= b; } return { n, r, st }; });
+            const fixed = [.33, .5, .75, 1].map(s => { let P = pot, S = stack, k = 0; while (S > .05 && k < 6) { const b = Math.min(S, s * P); P += 2 * b; S -= b; k++; if (S / P < .25 && S > 0) { k++; S = 0; } } return { s, k }; });
+            const eq = Math.max(0, Math.min(100, +T.eq || 0)) / 100, st = T.st;
+            const evs = [[.25, 1], [.33, 1], [.5, 2], [.66, 2], [.75, 3], [1, 3]].map(([s, c]) => ({ l: Math.round(s * 100) + ' %', b: Math.min(stack, s * pot), F: IX.REF.fold[st][c] })).concat(stack > 0 ? [{ l: 'Tapis', b: stack, F: IX.REF.fold[st][4] }] : []);
+            evs.forEach(o => o.ev = o.F.v * pot + (1 - o.F.v) * (eq * (pot + 2 * o.b) - o.b)); const chk = eq * pot, best = evs.reduce((a, o) => o.ev > a.ev ? o : a, { ev: chk, l: 'Check' });
+            return `<div class="grid gap-3 xl:grid-cols-2"><div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold mb-1">🧮 Planificateur de tapis</div><div class="text-[11px] text-slate-400 mb-2">La mise qui te met à tapis en 1, 2 ou 3 rues (taille « géométrique » : la même fraction du pot à chaque rue).</div>
+                <div class="flex flex-wrap gap-3 mb-3">${inp('pot', 'Pot (BB)', .5)}${inp('stack', 'Tapis effectif (BB)', .5)}</div><div class="text-sm mb-2">SPR = <b>${simF1(stack / pot)}</b></div>
+                <table class="w-full text-sm"><thead><tr class="text-[10px] uppercase text-slate-400"><th class="text-left">Tapis en</th><th class="px-2">Mise / pot</th><th class="text-left px-2">Mise à chaque rue</th></tr></thead><tbody>${geo.map(g => `<tr class="border-t border-white/5"><td class="py-1.5 font-bold">${g.n} rue${g.n > 1 ? 's' : ''}</td><td class="px-2 text-center font-bold text-indigo-300">${Math.round(100 * g.r)} %</td><td class="px-2 text-xs">${g.st.map(x => `${simF1(x.b)} BB dans ${simF1(x.P)}`).join(' → ')}</td></tr>`).join('')}</tbody></table>
+                <div class="text-xs text-slate-300 mt-2">Avec une taille fixe : ${fixed.map(f => `${Math.round(100 * f.s)} % → tapis en ${f.k} rue${f.k > 1 ? 's' : ''}`).join(' · ')}</div></div>
+                <div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold mb-1">💰 EV de chaque taille de mise</div><div class="text-[11px] text-slate-400 mb-2">Avec le fold réel de ton field à cette rue et à cette taille, et ton équité quand il paie.</div>
+                <div class="flex flex-wrap gap-3 mb-3">${inp('eq', 'Ton équité si payé (%)', 1)}<div class="text-xs text-slate-400">Rue<div class="flex gap-1 mt-1">${['F', 'T', 'R'].map(s => `<button data-lab="toolst" data-v="${s}" class="min-h-[44px] px-3 rounded-lg text-xs font-bold ${st === s ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${LAB_STL[s]}</button>`).join('')}</div></div></div>
+                <table class="w-full text-sm"><thead><tr class="text-[10px] uppercase text-slate-400"><th class="text-left">Taille</th><th class="px-2">Mise</th><th class="px-2">Il folde</th><th class="px-2">EV</th></tr></thead><tbody><tr class="border-t border-white/5 ${best.l === 'Check' ? 'text-emerald-300 font-bold' : ''}"><td class="py-1.5">Check</td><td></td><td></td><td class="px-2 text-right">${labF1(chk)} BB</td></tr>${evs.map(o => `<tr class="border-t border-white/5 ${o === best ? 'text-emerald-300 font-bold' : ''}"><td class="py-1.5">${o.l}</td><td class="px-2 text-center">${simF1(o.b)} BB</td><td class="px-2 text-center">${labPc(o.F.v)} ${relDot(o.F.n)}</td><td class="px-2 text-right">${labF1(o.ev)} BB</td></tr>`).join('')}</tbody></table>
+                <div class="text-[11px] text-slate-500 mt-2">EV d'une mise = fold × pot + payé × (équité × pot final − mise). Le check compte ton équité sur le pot actuel, sans la réaliser vraiment : un repère, pas un solveur.</div></div></div>`;
+        }
+
+        // ---- rendu de l'onglet ----
+        function labLeakHtml(hero) {
+            const K = labLeaks(hero), hl = (L, f) => `<div class="max-h-72 overflow-auto custom-scrollbar border border-white/10 rounded-lg mt-2">${L.slice(0, 60).map((d, i) => `<div class="flex items-center gap-3 px-3 py-2 border-b border-white/5 text-sm"><button data-lab="open" data-k="${esc(d.key)}" class="flex-1 text-left min-h-[40px]"><span class="text-base">${d.hc.split(' ').map(labMini).join(' ')}</span> <span class="text-slate-400">sur</span> ${d.L.bd.map(labMini).join(' ')} <span class="text-xs text-slate-400">${LAB_STL[d.st]} · pot ${simF1(d.e.pot)} BB · ${f(d)}</span></button><button data-lab="srsadd" data-k="${esc(d.key)}" class="min-h-[40px] px-3 rounded-lg ${LAB.srs[d.key] ? 'bg-slate-700 text-slate-400' : 'bg-slate-800 text-slate-200'} text-xs font-bold">${LAB.srs[d.key] ? 'Dans la file' : '+ File du jour'}</button></div>`).join('')}</div>`;
+            const fR = K.fR, fr2 = fR[2].v, sh = d => { const hc = (d.h.shown || {})[d.vil]; return hc ? 'il montre ' + hc.split(' ').map(labMini).join(' ') : ''; };
+            const vmP = K.ipChk.length ? K.vm.length / K.ipChk.length : 0, gaP = K.rvAir.length ? K.ga.length / K.rvAir.length : 0;
+            return `<div class="grid gap-3 xl:grid-cols-2"><div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold">💸 Value manquée en position <span class="text-sm font-normal text-slate-400">(${K.vm.length} mains)</span></div>
+                <div class="text-sm text-slate-300 mt-1">Tu as checké derrière avec top paire ou mieux ${K.ipChk.length} fois. Dans ${K.vm.length} cas (${labPc(vmP)}), il a montré une paire ou mieux à l'abattage : une petite mise aurait souvent été payée. ${relBadge(K.ipChk.length)}</div>${K.vm.length ? hl(K.vm.sort((a, b) => b.e.pot - a.e.pot), sh) : ''}</div>
+                <div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold">🏳️ Bluffs abandonnés à la river <span class="text-sm font-normal text-slate-400">(${K.ga.length} mains perdues)</span></div>
+                <div class="text-sm text-slate-300 mt-1">À la river, sans paire et sans mise à payer, tu as checké ${K.rvAir.length} fois (et misé ${K.rvBetAir.length} fois). ${K.ga.length} de ces checks ont perdu (${labPc(gaP)}). Ton field folde <b>${labPc(fr2)}</b> face à une mise moyenne à la river, <b>${labPc(fR[1].v)}</b> face à une petite : un bluff de 50 % du pot est rentable dès 33 % de fold, une mise de 33 % dès 25 %.${fr2 >= .33 ? ' <b class="text-emerald-300">Ton field folde assez : une partie de ces mains doit devenir des bluffs</b>, de préférence celles qui bloquent ses calls.' : ' <span class="text-amber-300">Ton field ne folde pas assez pour bluffer souvent : checker reste correct la plupart du temps.</span>'}</div>${K.ga.length ? hl(K.ga.sort((a, b) => b.e.pot - a.e.pot), sh) : ''}</div></div>
+                <div class="text-[11px] text-slate-500 mt-2">Touche une main pour la revoir, ou ajoute-la à ta file du jour pour la rejouer en entraînement.</div>`;
+        }
+        function labTrainHtml(hero) {
+            const Q = LAB.q;
+            if (Q && Q.done) { const n = Q.i; return `<div class="rounded-2xl bg-slate-900 border border-white/10 p-5 text-center"><div class="text-2xl font-black">${LAB_G[Q.g].t} : terminé</div><div class="text-lg mt-2">${Q.ok} bonnes décisions sur ${n}</div><div class="text-sm text-slate-300 mt-1">Coût total de tes erreurs : <b>${simF1(Q.cost)} BB</b> (${simF1(Q.cost / Math.max(1, n))} BB par décision)</div><div class="text-xs text-slate-400 mt-2">Les mains ratées reviennent demain dans ta file du jour.</div><div class="grid grid-cols-2 gap-2 mt-4"><button data-lab="go" data-g="${Q.g}" class="min-h-[52px] rounded-2xl bg-indigo-600 text-white font-black">Rejouer</button><button data-lab="quit" class="min-h-[52px] rounded-2xl bg-slate-800 font-bold">Retour</button></div></div>`; }
+            if (Q) return labQHtml();
+            const Dl = labDaily(hero), st = (v, l) => `<button data-lab="st" data-v="${v}" class="min-h-[40px] px-3 rounded-lg text-xs font-bold ${LAB.st === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`;
+            const done = Object.values(LAB.srs), mast = done.filter(o => o.b >= 3).length;
+            const card = g => `<button data-lab="go" data-g="${g}" class="text-left rounded-2xl bg-slate-900 border ${g === 'daily' ? 'border-indigo-400/60' : 'border-white/10'} p-4 min-h-[120px] hover:bg-slate-800"><div class="text-lg font-black">${LAB_G[g].t}${g === 'daily' ? ` <span class="ml-1 text-sm font-bold ${Dl.list.length ? 'text-amber-300' : 'text-emerald-300'}">${Dl.due.length} à revoir · ${Dl.fresh.length} nouvelles</span>` : ''}</div><div class="text-sm text-slate-300 mt-1">${LAB_G[g].d}</div></button>`;
+            return `<div class="flex flex-wrap items-center gap-1.5 mb-3"><span class="text-[10px] uppercase text-slate-400 font-bold">Rue</span>${st('all', 'Toutes')}${st('F', 'Flop')}${st('T', 'Turn')}${st('R', 'River')}<span class="text-xs text-slate-400 ml-2">${done.length} mains travaillées · ${mast} acquises (réussies 3 fois de suite)</span></div>
+                <div class="grid gap-3 md:grid-cols-2">${['daily', 'bc', 'mdf', 'sv'].map(card).join('')}</div>
+                <div class="text-[11px] text-slate-500 mt-2">Toutes les questions viennent de tes propres mains (heads-up au postflop). Chaque option est chiffrée en BB : ta main réelle contre la range estimée de l'adversaire, et le fold réel de ton field. Toute réponse alimente la file du jour.</div>`;
+        }
+        function labRender() {
+            const box = document.getElementById('labBox'), hero = playerSelect.value; if (!box) return;
+            if (!hero || !allParsedHands.length) { box.innerHTML = '<p class="text-slate-400 text-sm p-4">Importe tes HH et choisis ton pseudo.</p>'; return; }
+            const segs = [['train', '🎯 Entraînement'], ['leak', '🩹 Fuites postflop'], ['fs', '📋 Fiche solveur'], ['tl', '👁 Tells de taille'], ['tool', '🧮 Outils']];
+            let body = ''; try { body = LAB.seg === 'leak' ? labLeakHtml(hero) : LAB.seg === 'fs' ? labFsHtml(hero) : LAB.seg === 'tl' ? labTlHtml(hero) : LAB.seg === 'tool' ? labToolHtml(hero) : labTrainHtml(hero); } catch (e) { console.error('lab', e); body = `<div class="text-rose-300 text-sm">${esc(e.message)}</div>`; }
+            box.innerHTML = `<div class="flex flex-wrap gap-1.5 mb-3">${segs.map(([v, l]) => `<button data-lab="seg" data-v="${v}" class="min-h-[44px] px-4 rounded-xl text-sm font-bold ${LAB.seg === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('')}</div><div class="pc">${body}</div>`;
+            clearInterval(_labTm); const Q = LAB.q;
+            if (LAB.seg === 'train' && Q && !Q.done && !Q.ans && Q.g === 'bc') { let t = 6; _labTm = setInterval(() => { t--; const el = document.getElementById('labTm'); if (el) el.textContent = t; if (t <= 0) { clearInterval(_labTm); if (LAB.q === Q && !Q.ans) labAnswer(null); } }, 1000); }
+        }
+        document.addEventListener('click', e => {
+            const b = e.target.closest('#labBox [data-lab]'); if (!b) return; const a = b.dataset.lab, v = b.dataset.v, hero = playerSelect.value;
+            if (a === 'seg') { LAB.seg = v; return labRender(); }
+            if (a === 'st') { LAB.st = v; labSave(); return labRender(); }
+            if (a === 'go') return labStart(b.dataset.g);
+            if (a === 'ans') return labAnswer(v);
+            if (a === 'next') return labNext();
+            if (a === 'quit') { LAB.q = null; return labRender(); }
+            if (a === 'replay') { const d = LAB.q && LAB.q.L[LAB.q.i]; if (d) startReplay(d.h, null, null, { ctx: `Postflop Lab · ${LAB_STL[d.st]}` }); return; }
+            if (a === 'open') { const d = labIndex(hero).map.get(b.dataset.k); if (d) startReplay(d.h, null, null, { ctx: `Postflop · ${LAB_STL[d.st]}` }); return; }
+            if (a === 'srsadd') { const k = b.dataset.k; if (!LAB.srs[k]) { LAB.srs[k] = { b: 0, n: 0, ok: 0, due: Date.now() - 1 }; labSave(); } return labRender(); }
+            if (a === 'fs') { LAB.fs[b.dataset.k] = v; labSave(); return labRender(); }
+            if (a === 'tl') { LAB.tl = v; return labRender(); }
+            if (a === 'toolst') { LAB.tool.st = v; labSave(); return labRender(); }
+            if (a === 'copy') { const t = (document.getElementById('labFsTxt') || {}).textContent || ''; const ok = () => { b.textContent = '✓ Copié'; setTimeout(() => b.textContent = '📋 Copier', 1500); };
+                if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, () => { }); else { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (x) { } ta.remove(); } return; }
+        });
+        document.addEventListener('change', e => { const t = e.target; if (!t.closest || !t.closest('#labBox') || t.dataset.lab !== 'tool') return; LAB.tool[t.dataset.k] = parseFloat(String(t.value).replace(',', '.')) || 0; labSave(); labRender(); });
+        // onglet dans « Apprendre »
+        {
+            const ref = document.getElementById('tab-tx') || document.getElementById('tab-leaks'); if (ref && !document.getElementById('tab-lab')) ref.insertAdjacentHTML('afterend', '<section id="tab-lab" class="hidden"><div id="labBox" class="space-y-3"></div></section>');
+            const sb = document.getElementById('subBar'); if (sb && !document.querySelector('.tab-btn[data-tab="lab"]')) { const b = document.createElement('button'); b.dataset.tab = 'lab'; b.className = 'tab-btn px-4 py-2 rounded-xl text-[13px] font-semibold transition bg-slate-800 text-slate-300'; b.textContent = '🎓 Postflop Lab'; b.addEventListener('click', () => showTab('lab')); sb.appendChild(b); }
+            const g = NAV.find(x => x.id === 'learn'); if (g && !g.tabs.includes('lab')) g.tabs.unshift('lab');
+            NAV_TAB.lab = ['🎓 Postflop Lab', 'Entraînement postflop sur tes mains, fuites postflop, fiche solveur, tells de taille et outils'];
+            const _stL = showTab; showTab = function (t) { _stL(t); const s = document.getElementById('tab-lab'); if (s) s.classList.toggle('hidden', t !== 'lab');
+                if (t === 'lab') { document.querySelectorAll('.tab-btn').forEach(b => { const on = b.dataset.tab === 'lab'; b.classList.toggle('bg-indigo-600', on); b.classList.toggle('text-white', on); b.classList.toggle('bg-slate-800', !on); b.classList.toggle('text-slate-300', !on); }); try { navSync('lab'); } catch (e) { }
+                    const bx = document.getElementById('labBox'); if (bx && !_labI) bx.innerHTML = '<p class="text-slate-400 text-sm p-4">Lecture de tes mains postflop…</p>'; setTimeout(() => { try { labRender(); } catch (e) { console.error('lab', e); } }, 30); } };
+            const _taL = triggerAnalysis; triggerAnalysis = function () { const r = _taL.apply(this, arguments); try { _labI = null; if (curTab() === 'lab') setTimeout(labRender, 50); else setTimeout(() => { try { if (playerSelect.value && allParsedHands.length) labIndex(playerSelect.value); } catch (e) { } }, 6000); } catch (e) { } return r; };
+        }
+        // lien depuis l'onglet Leaks
+        { const _stLk = showTab; showTab = function (t) { _stLk(t); if (t !== 'leaks') return; setTimeout(() => { const lk = document.getElementById('tab-leaks'); if (!lk || document.getElementById('labLkLink')) return; const d = document.createElement('div'); d.id = 'labLkLink'; d.className = 'pc flex flex-wrap items-center justify-between gap-2'; d.innerHTML = '<div class="text-sm text-slate-300"><b>🩹 Fuites postflop</b> : value manquée en position et bluffs abandonnés à la river, dans le Postflop Lab.</div><button class="min-h-[44px] px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">Voir</button>'; d.querySelector('button').onclick = () => { LAB.seg = 'leak'; showTab('lab'); }; lk.appendChild(d); }, 80); }; }
+
+        // ---- Mode table : tells de taille et taille géométrique dans le conseil ----
+        { const _mvh = mpVerdictHtml; mpVerdictHtml = function (C, hero, st, V) { const r = _mvh(C, hero, st, V); if (!r) return r; try {
+            const k = C.opp && C.opp[0], tg = k != null ? (MT.tg[k] || 'f') : 'f'; let T = labTells(hero, tg, st)[st], who = tg === 'f' ? 'le field' : tg.startsWith('p:') ? tg.slice(2) : tg;
+            if (T.reduce((a, o) => a + o.n, 0) < 15) { T = labTells(hero, 'f', st)[st]; who = 'le field'; }
+            const tl = T.filter(o => o.n >= 5).map(o => `${LAB_SZS[o.z]} <b class="text-white">${labPc(o.v / o.n)}</b> value <span class="text-slate-500">(${o.n})</span>`).join(' · ');
+            const pot = Math.max(.5, V.PE.pot), eff = V.PE.eff, left = st === 'F' ? 3 : st === 'T' ? 2 : 1, geo = [];
+            for (let n = Math.min(left, 3); n >= 1; n--) geo.push(`${n} rue${n > 1 ? 's' : ''} : <b class="text-white">${Math.round(100 * labGeo(pot, eff, n))} %</b>`);
+            const add = `<div class="mt-2 rounded-xl bg-slate-900/70 border border-white/10 px-3 py-2 text-[12px] text-slate-300 space-y-1">${tl ? `<div>👁 Quand ${esc(who)} mise ${LAB_ST3[st]}, il montre : ${tl}</div>` : ''}${eff > 0 ? `<div>🧮 Tapis en ${geo.join(' · ')} du pot (SPR ${simF1(eff / pot)})</div>` : ''}</div>`;
+            return r + add; } catch (e) { return r; } }; }
+
+        // ---- Progression : coach de séance et fatigue / tilt ----
+        function labPfGoalRate(hero, t0, after) { const L = labLeaks(hero), ok = d => after ? d.t > t0 : d.t <= t0; const a = L.ipChk.filter(ok), b = L.vm.filter(ok); return { n: a.length, e: b.length, p: a.length ? b.length / a.length : 0 }; }
+        function labCoachPrep() {
+            const hero = playerSelect.value, all = chPool(hero), t0 = allParsedHands.reduce((m, h) => Math.max(m, labTs(h)), 0); let lk = []; try { lk = lkLife(hero); } catch (e) { }
+            const goals = lk.slice(0, 2).map(x => ({ k: 'pf', scen: x.scen, dir: x.dir, label: x.label, before: x.tot.p, txt: `${x.label} : ne pas jouer ${x.dir === 'loose' ? 'trop large' : 'trop serré'}` }));
+            const pv = labPfGoalRate(hero, t0, false); goals.push({ k: 'vm', label: 'Value en position', before: pv.p, txt: 'En position avec top paire ou mieux : mise petit au lieu de checker derrière' });
+            LAB.coach = { t0, at: Date.now(), goals }; labSave(); dvRender();
+        }
+        function labCoachEval(hero) {
+            const C = LAB.coach; if (!C) return null; const all = chPool(hero);
+            return C.goals.map(g => { if (g.k === 'vm') { const r = labPfGoalRate(hero, C.t0, true); return { ...g, n: r.n, after: r.p }; }
+                const L = all.filter(s => s.scen === g.scen && labTs(s.h) > C.t0), e = L.filter(s => s.err && s.dir === g.dir).length; return { ...g, n: L.length, after: L.length ? e / L.length : 0 }; });
+        }
+        function labCoachHtml(hero) {
+            const C = LAB.coach;
+            if (!C) return `<div class="text-sm text-slate-300">Avant de jouer, je choisis trois objectifs tirés de tes leaks (deux préflop, un postflop). Après ta séance, importe tes nouvelles mains : le bilan compare tes taux d'erreur avant et pendant la séance.</div><button data-dv="prep" class="mt-2 min-h-[48px] px-5 rounded-xl bg-indigo-600 text-white font-bold">🧭 Préparer ma séance</button>${LAB.hist.length ? `<div class="text-xs text-slate-400 mt-3">Dernières séances : ${LAB.hist.slice(0, 5).map(h => `${new Date(h.at).toLocaleDateString('fr-FR')} ${h.ok}/${h.n} objectif${h.n > 1 ? 's' : ''} tenu${h.ok > 1 ? 's' : ''}`).join(' · ')}</div>` : ''}`;
+            const R = labCoachEval(hero), anyN = R.some(g => g.n > 0);
+            const st = g => g.n < 5 ? '<span class="text-slate-400">pas encore assez de mains</span>' : g.after <= Math.max(.04, g.before * .75) ? '<span class="text-emerald-400 font-bold">✓ tenu</span>' : g.after <= g.before ? '<span class="text-amber-300 font-bold">≈ mieux, pas encore assez</span>' : '<span class="text-rose-400 font-bold">✗ pas tenu</span>';
+            return `<div class="text-xs text-slate-400 mb-2">Séance préparée le ${new Date(C.at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })} · ${anyN ? 'bilan sur les mains jouées depuis' : 'importe tes mains après ta séance pour voir le bilan'}</div>
+                <div class="space-y-2">${R.map((g, i) => `<div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold text-sm">${i + 1}. ${esc(g.txt)}</div><div class="text-xs text-slate-300 mt-1">Erreurs avant : <b>${labPc(g.before)}</b> · pendant la séance : <b>${g.n ? labPc(g.after) : '–'}</b> <span class="text-slate-500">(${g.n} occasion${g.n > 1 ? 's' : ''})</span> · ${st(g)}</div></div>`).join('')}</div>
+                <button data-dv="close" class="mt-2 min-h-[48px] px-5 rounded-xl bg-slate-800 text-slate-200 font-bold">Clôturer et préparer la suivante</button>`;
+        }
+        function labFatigue(hero) {
+            const H = allParsedHands.filter(h => h.buyin !== 0 && h.players.includes(hero)).map(h => ({ h, t: labTs(h) })).filter(x => x.t).sort((a, b) => a.t - b.t);
+            const start = new Map(); let s0 = 0, prev = 0; H.forEach(x => { if (x.t - prev > 30 * 6e4) s0 = x.t; prev = x.t; start.set(x.h, s0); });
+            // spins perdus : dernier coup d'un tournoi où tu finis à 0
+            const T = {}; H.forEach(x => { const id = x.h.tid; if (id) T[id] = x; }); const fin = Object.values(T).map(x => { let lost = false; try { lost = endStacks(x.h)[hero] <= 0; } catch (e) { } return { t: x.t, lost }; }).sort((a, b) => a.t - b.t), busts = fin.map(x => x.t), stk = []; let c = 0; fin.forEach(x => { c = x.lost ? c + 1 : 0; stk.push(c); });
+            const streak = t => { let lo = 0, hi = busts.length - 1, r = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (busts[m] < t) { r = m; lo = m + 1; } else hi = m - 1; } return r >= 0 ? stk[r] : 0; };
+            const B = [[0, 30, '0–30 min'], [30, 60, '30–60 min'], [60, 90, '60–90 min'], [90, 120, '90–120 min'], [120, 1e9, 'plus de 2 h']].map(b => ({ b, n: 0, e: 0, l: 0 })), tilt = { n: 0, e: 0, l: 0 }, calm = { n: 0, e: 0, l: 0 };
+            chPool(hero).forEach(s => { const t = labTs(s.h), st = start.get(s.h); if (!t || st == null) return; const m = (t - st) / 6e4, o = B.find(x => m >= x.b[0] && m < x.b[1]); const add = z => { z.n++; if (s.err) { z.e++; z.l += s.loss || 0; } }; if (o) add(o); add(streak(t) >= 4 ? tilt : calm); });
+            return { B, tilt, calm, ns: new Set(start.values()).size };
+        }
+        function labFatHtml(hero) {
+            const F = labFatigue(hero), all = F.B.reduce((a, o) => ({ n: a.n + o.n, e: a.e + o.e }), { n: 0, e: 0 }), p0 = all.n ? all.e / all.n : 0;
+            const row = (lab, o) => { const p = o.n ? o.e / o.n : 0, se = Math.sqrt(p0 * (1 - p0) / Math.max(1, o.n)), bad = o.n >= 100 && p - p0 > 2 * se && p >= p0 * 1.15, good = o.n >= 100 && p0 - p > 2 * se && p <= p0 * .85;
+                return `<tr class="border-t border-white/5"><td class="py-1.5 pr-3">${lab}</td><td class="px-2 text-center">${o.n} ${relDot(o.n)}</td><td class="px-2 text-center font-bold ${bad ? 'text-rose-400' : good ? 'text-emerald-400' : ''}">${o.n ? labPc(p) : '–'}</td><td class="px-2 text-center">${o.n ? simF1(100 * o.l / o.n) : '–'} BB</td></tr>`; };
+            const worst = F.B.filter(o => o.n >= 100).map(o => ({ o, p: o.e / o.n })).filter(x => x.p >= p0 * 1.15).sort((a, b) => b.p - a.p)[0], tp = F.tilt.n ? F.tilt.e / F.tilt.n : 0, cp = F.calm.n ? F.calm.e / F.calm.n : 0, tse = Math.sqrt(cp * (1 - cp) / Math.max(1, F.tilt.n));
+            const msg = [worst && worst.p - p0 > 2 * Math.sqrt(p0 * (1 - p0) / worst.o.n) ? `Tu fais nettement plus d'erreurs à <b>${worst.o.b[2]}</b> de séance (${labPc(worst.p)} contre ${labPc(p0)} en moyenne) : pense à faire une pause avant.` : 'Pas de baisse nette selon la durée de séance.', F.tilt.n >= 50 && tp - cp > 2 * tse && tp >= cp * 1.15 ? `Après quatre spins perdus d'affilée ou plus, ton taux d'erreur monte à <b>${labPc(tp)}</b> (contre ${labPc(cp)}) : fais une courte pause avant de relancer.` : F.tilt.n >= 50 ? 'Pas de tilt net après une série de spins perdus.' : ''].filter(Boolean).join(' ');
+            return `<div class="text-sm text-slate-200 mb-2">${msg}</div><table class="w-full text-sm"><thead><tr class="text-[10px] uppercase text-slate-400"><th class="text-left">Moment</th><th class="px-2">Décisions</th><th class="px-2">Erreurs</th><th class="px-2">Coût / 100 décisions</th></tr></thead><tbody>${F.B.map(o => row('Après ' + o.b[2] + ' de séance', o)).join('')}${row('Après 4 spins perdus d\'affilée ou plus', F.tilt)}${row('Le reste du temps', F.calm)}</tbody></table><div class="text-[11px] text-slate-500 mt-2">${F.ns} séances repérées (une pause de plus de 30 minutes en commence une nouvelle). Décisions préflop jugées. En rouge ou vert : écart net (au moins 15 % d'écart relatif, plus de 2 écarts-types, au moins 100 décisions).</div>`;
+        }
+        { const _dvr = dvRender; dvRender = function () { _dvr(); const el = document.getElementById('dvBox'), hero = playerSelect.value; if (!el || !hero) return; let a = '', b = '';
+            try { a = labCoachHtml(hero); } catch (e) { a = `<div class="text-rose-300 text-sm">${esc(e.message)}</div>`; } try { b = labFatHtml(hero); } catch (e) { b = `<div class="text-rose-300 text-sm">${esc(e.message)}</div>`; }
+            el.insertAdjacentHTML('afterbegin', `<details class="pc" open><summary class="cursor-pointer min-h-[44px] flex items-center font-bold text-slate-100">🧭 Coach de séance <span class="ml-2 text-xs font-normal text-slate-400">(trois objectifs avant de jouer, le bilan après)</span></summary><div class="mt-2">${a}</div></details>`);
+            el.insertAdjacentHTML('beforeend', `<details class="pc"><summary class="cursor-pointer min-h-[44px] flex items-center font-bold text-slate-100">🧠 Fatigue et tilt <span class="ml-2 text-xs font-normal text-slate-400">(tes erreurs selon la durée de séance et après une série de défaites)</span></summary><div class="mt-2">${b}</div></details>`); }; }
+        document.addEventListener('click', e => { const b = e.target.closest('#dvBox [data-dv]'); if (!b) return; if (b.dataset.dv === 'prep') labCoachPrep(); if (b.dataset.dv === 'close') { const R = labCoachEval(playerSelect.value) || []; LAB.hist.unshift({ at: LAB.coach.at, n: R.length, ok: R.filter(g => g.n >= 5 && g.after <= Math.max(.04, g.before * .75)).length }); LAB.hist = LAB.hist.slice(0, 30); LAB.coach = null; labSave(); labCoachPrep(); } });
 
 </script>
 </body>
