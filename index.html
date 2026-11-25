@@ -4477,7 +4477,7 @@
                 <div class="text-xs font-bold text-slate-300 mb-1">Dernières décisions</div><div class="max-h-56 overflow-auto custom-scrollbar border border-white/10 rounded-lg">${recent.map(h => `<div class="flex flex-wrap gap-3 px-3 py-1 text-xs border-b border-white/5"><span class="${h.ok ? 'text-emerald-400' : 'text-rose-400'}">${h.ok ? '✓' : '✗'}</span><span class="w-12 font-bold text-slate-200">${h.hand}</span><span class="text-slate-400 flex-1 min-w-[12rem]">${esc(h.title)}</span><span>toi : <b>${h.choice}</b></span><span>reco : <b>${h.best}</b></span>${h.adapt ? `<span class="text-amber-300">adaptation ${h.followed ? 'appliquée' : 'manquée'}</span>` : ''}${h.ok ? '' : `<span class="text-rose-300">−${String(h.loss.toFixed(2)).replace('.', ',')} BB</span>`}</div>`).join('')}</div>` : '<p class="text-xs text-slate-500">Joue des spots en mode Coach : tes décisions s\'enregistrent ici, par scénario, avec la part des adaptations que tu appliques vraiment.</p>'}</div>`;
             box.innerHTML = scen + sweep + hist;
         }
-        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed', 'lab_cfg', 'lab_srs', 'lab_log', 'lab_coach', 'slv_cfg']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
+        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed', 'lab_cfg', 'lab_srs', 'lab_log', 'lab_coach', 'slv_cfg', 'gtp_db']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
         async function bkRestore(x, merge) {
             for (const k of Object.keys(x || {})) { let v = x[k]; try { const cur = await localforage.getItem(k);
                 if (merge && Array.isArray(cur) && Array.isArray(v)) v = k === 'sim_scen' ? [...cur.filter(c => !v.some(n => n.name === c.name)), ...v] : [...cur, ...v.filter(n => !cur.some(c => c.ts === n.ts && c.hand === n.hand))].sort((a, b) => a.ts - b.ts);
@@ -10231,11 +10231,11 @@
                 <div class="text-sm text-slate-200 space-y-0.5"><div>Pot <b>${simF1(V.pot)} BB</b> · tapis effectif <b>${simF1(V.eff)} BB</b>${d.type === 'face' ? ` · il mise <b>${simF1(e.call)} BB</b> (${Math.round(100 * e.ffrac)} %)` : ''}</div><div>${L.fmt === 'HU' ? 'Heads-up' : '3-max'} · toi ${mpos} ${e.ip ? '(en position)' : '(hors position)'} contre ${vpos} · pot ${L.potT === 'R' ? 'relancé' : 'limpé'}${L.agg ? ` par ${L.agg === hero ? 'toi' : 'lui'}` : ''}</div><div class="text-xs text-slate-400">${line}</div></div></div></div>`;
             let body;
             if (!Q.ans) body = `<div class="grid gap-2 mt-3" style="grid-template-columns:repeat(${opts.length},minmax(0,1fr))">${opts.map(o => `<button data-lab="ans" data-v="${esc(o.l)}" class="min-h-[60px] rounded-2xl text-lg font-black ${o.g === 'f' ? 'bg-slate-700' : o.g === 'x' || o.g === 'c' ? 'bg-sky-700' : 'bg-rose-700'} text-white">${o.l}</button>`).join('')}</div>`;
-            else { const A = Q.ans, bestG = V.best.g, rows = V.o.map(o => `<tr class="border-t border-white/5 ${o === V.best ? 'text-emerald-300 font-bold' : ''}"><td class="py-1.5 pr-3">${o.l}${o === V.best ? ' ✓' : ''}</td><td class="px-2 text-right">${labF1(o.ev)} BB</td><td class="px-2 text-xs text-slate-400">${o.F != null ? `il folde ${labPc(o.F)} · ton équité ${labPc(o.eqC)} quand il paie` : o.need != null ? `il te faut ${labPc(o.need)} d'équité` : `ton équité ${labPc(V.eq)} contre sa range`}</td></tr>`).join('');
-                body = `<div class="mt-3 rounded-2xl ${A.ok ? 'bg-emerald-900/40 border-emerald-500/40' : 'bg-rose-900/40 border-rose-500/40'} border p-3"><div class="text-lg font-black">${A.ok ? '✅ Bonne décision' : A.v ? '❌ Pas la meilleure' : '⏱ Temps écoulé'}${A.v ? ` · tu choisis ${esc(A.v)}` : ''}${!A.ok && A.cost > 0 ? ` <span class="text-sm font-normal text-slate-300">(coûte ${simF1(A.cost)} BB)</span>` : ''}</div>
+            else { const A = Q.ans, bestG = V.best.g, rows = V.o.map(o => `<tr class="border-t border-white/5 ${o === V.best ? 'text-emerald-300 font-bold' : ''}"><td class="py-1.5 pr-3">${o.l}${o === V.best ? ' ✓' : ''}</td><td class="px-2 text-right">${V.noEv ? '' : labF1(o.ev) + ' BB'}</td><td class="px-2 text-xs text-slate-400">${o.sf != null ? `ton solveur : ${labPc(o.sf)}` : o.F != null ? `il folde ${labPc(o.F)} · ton équité ${labPc(o.eqC)} quand il paie` : o.need != null ? `il te faut ${labPc(o.need)} d'équité` : `ton équité ${labPc(V.eq)} contre sa range`}</td></tr>`).join('');
+                body = `<div class="mt-3 rounded-2xl ${A.ok ? 'bg-emerald-900/40 border-emerald-500/40' : 'bg-rose-900/40 border-rose-500/40'} border p-3"><div class="text-lg font-black">${A.ok ? '✅ Bonne décision' : A.v ? '❌ Pas la meilleure' : '⏱ Temps écoulé'}${A.v ? ` · tu choisis ${esc(A.v)}` : ''}${!A.ok && A.cost > 0 && !V.noEv ? ` <span class="text-sm font-normal text-slate-300">(coûte ${simF1(A.cost)} BB)</span>` : ''}</div>
                     <table class="w-full text-sm mt-2"><tbody>${rows}</tbody></table>
-                    <div class="text-sm text-slate-300 mt-2">Ton équité contre sa range : <b>${labPc(V.eq)}</b> (${labPc(V.share)} des mains possibles). En vrai, tu as joué <b>${V.did}</b>${V.did !== V.best.l ? ` (écart ${simF1(labCost(d, V.did))} BB)` : ''} · résultat de la main <b class="${d.nb >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${labF1(d.nb)} BB</b>.</div>
-                    <div class="text-[11px] text-slate-500 mt-1">Repère chiffré, pas un solveur : sa range est estimée d'après sa ligne (préflop puis rue par rue) et le fold vient de ton field à cette rue et à cette taille. La réalisation d'équité n'est pas modélisée.</div></div>
+                    <div class="text-sm text-slate-300 mt-2">${V.eq != null ? `Ton équité contre sa range : <b>${labPc(V.eq)}</b> (${labPc(V.share)} des mains possibles). ` : ''}En vrai, tu as joué <b>${V.did}</b>${V.did !== V.best.l && !V.noEv ? ` (écart ${simF1(labCost(d, V.did))} BB)` : ''} · résultat de la main <b class="${d.nb >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${labF1(d.nb)} BB</b>.</div>
+                    <div class="text-[11px] text-slate-500 mt-1">${V.src || 'Repère chiffré, pas un solveur : sa range est estimée d\'après sa ligne (préflop puis rue par rue) et le fold vient de ton field à cette rue et à cette taille. La réalisation d\'équité n\'est pas modélisée.'}</div></div>
                     <div class="grid grid-cols-2 gap-2 mt-3"><button data-lab="replay" class="min-h-[52px] rounded-2xl bg-slate-800 font-bold text-slate-200">🎬 Revoir la main</button><button data-lab="next" class="min-h-[52px] rounded-2xl bg-indigo-600 font-black text-white">${Q.i + 1 >= Q.L.length || (Q.g === 'sv' && Q.lives <= 0) ? 'Terminer' : 'Suivante ▶'}</button></div>`; }
             return head + ctx + body + `<button data-lab="quit" class="mt-3 text-sm text-slate-400 underline min-h-[44px]">Quitter l'exercice</button>`;
         }
@@ -10613,12 +10613,12 @@
 
         // ===================== 92. SPOTS À SOLVER : tes situations postflop sans fichier de solveur, classées par fréquence =====================
         // Nom de fichier générique reconnu à l'import : SPOT_<arbre>_<hors position>_<qui décide>_<type>_<taille>_<profondeur>bb (ex. SPOT_SRP_BB_BB_first_0_12bb.xlsx)
-        { const _gm = gpMeta; gpMeta = function (id, pot) { const base = String(id).replace(/@.*$/, ''), m = base.match(/^SPOT_(SRP|3BP|LIMP|SBR|ISO|HUISO)_(BB|SB)_(BTN|BB|SB)_(first|x|bet|xr|xrshove|shove|leadallin)_([\d.]+)(?:-([\d.]+))?_(\d+)bb$/);
+        { const _gm = gpMeta; gpMeta = function (id, pot) { const base = String(id).replace(/@.*$/, ''), m = base.match(/^SPOT_(SRP|3BP|LIMP|SBR|ISO|HUISO|HULIMP)_(BB|SB)_(BTN|BB|SB)_(first|x|bet|xr|xrshove|shove|leadallin)_([\d.]+)(?:-([\d.]+))?_(\d+)bb$/);
             if (!m) return _gm.apply(this, arguments); const [, tree, opp, role, kind, a, b, d] = m, P = pot || TD_POT[tree] || 4.5, par = kind === 'xr' || kind === 'xrshove' ? { b: +a, to: +b } : +a;
             return { tree, opp, role, kind, par, depth: +d, pot: P, title: tdTitle({ tree, opp, role, kind, par }), ...(kind === 'xr' || kind === 'xrshove' ? { b: +a, to: +b } : {}) }; }; }
-        const TD_POT = { SRP: 4.5, '3BP': 9, LIMP: 2, SBR: 5, ISO: 6, HUISO: 6 };
-        const TD_TREE = { SRP: '3-max · BTN min-raise, la blind paie', '3BP': '3-max · BTN ouvre, la blind 3-bet, BTN paie', LIMP: 'BvB · SB limpe, BB checke', SBR: 'BvB · SB relance, BB paie', ISO: 'BvB · SB limpe, BB relance, SB paie', HUISO: 'Heads-up · SB limpe, BB relance, SB paie' };
-        const tdIP = T => T.tree === 'HUISO' ? 'SB' : ['LIMP', 'SBR', 'ISO'].includes(T.tree) ? 'BB' : 'BTN';
+        const TD_POT = { SRP: 4.5, '3BP': 9, LIMP: 2, SBR: 5, ISO: 6, HUISO: 6, HULIMP: 2 };
+        const TD_TREE = { SRP: '3-max · BTN min-raise, la blind paie', '3BP': '3-max · BTN ouvre, la blind 3-bet, BTN paie', LIMP: 'BvB · SB limpe, BB checke', SBR: 'BvB · SB relance, BB paie', ISO: 'BvB · SB limpe, BB relance, SB paie', HUISO: 'Heads-up · SB limpe, BB relance, SB paie', HULIMP: 'Heads-up · SB limpe, BB checke' };
+        const tdIP = T => T.tree === 'HUISO' || T.tree === 'HULIMP' ? 'SB' : ['LIMP', 'SBR', 'ISO'].includes(T.tree) ? 'BB' : 'BTN';
         const tdB = v => String(Math.round(v * 10) / 10).replace('.', ',');
         function tdTitle(T) { const ip = tdIP(T), oop = T.opp, p = T.par;
             const L = { first: `${oop} parle en premier → check ou mise`, x: `${oop} checke → action du ${ip}`, bet: T.role === oop ? `${oop} checke, ${ip} mise ${tdB(p)} BB → réponse du ${oop}` : `${oop} mise ${tdB(p)} BB → réponse du ${ip}`,
@@ -10630,21 +10630,21 @@
             const ip = tdIP(T), oop = T.opp; let R = {};
             if (T.tree === 'SRP') R = { BTN: ch('3M', 'T_O', 'raise'), [oop]: oop === 'BB' ? ch('3M', 'T_BRF', 'call') : ch('3M', 'T_SR', 'call') };
             else if (T.tree === '3BP') R = { BTN: mul(ch('3M', 'T_O', 'raise'), ch('3M', 'T_RF3', 'call')), [oop]: oop === 'BB' ? ch('3M', 'T_BRF', 'raise') : null };
-            else { const f = T.tree === 'HUISO' ? 'HU' : 'BvB';
-                if (T.tree === 'LIMP') R = { SB: ch(f, 'O', 'limp'), BB: ch(f, 'B_L', 'check') };
+            else { const f = T.tree === 'HUISO' || T.tree === 'HULIMP' ? 'HU' : 'BvB';
+                if (T.tree === 'LIMP' || T.tree === 'HULIMP') R = { SB: ch(f, 'O', 'limp'), BB: ch(f, 'B_L', 'check') };
                 else if (T.tree === 'SBR') R = { SB: ch(f, 'O', 'raise'), BB: ch(f, 'B_R', 'call') };
                 else R = { SB: mul(ch(f, 'O', 'limp'), ch(f, 'L_R', 'call')), BB: ch(f, 'B_L', 'raise') }; }
             const str = w => { if (!w) return null; const L = []; for (let i = 0; i < 169; i++) { const v = w[i]; if (v >= .995) L.push(cname(i)); else if (v >= .01) L.push(cname(i) + ':' + (Math.round(v * 100) / 100)); } return L.join(','); };
             return { oop: { pos: oop, s: str(R[oop]) }, ip: { pos: ip, s: str(R[ip]) } };
         }
-        const TD_INV = T => ({ SRP: PF_CFG.R || 2, '3BP': 4.5, LIMP: 1, SBR: PF_CFG.Rb || 2.5, ISO: PF_CFG.I || 3, HUISO: PF_CFG.I || 3 })[T.tree];
+        const TD_INV = T => ({ SRP: PF_CFG.R || 2, '3BP': 4.5, LIMP: 1, SBR: PF_CFG.Rb || 2.5, ISO: PF_CFG.I || 3, HUISO: PF_CFG.I || 3, HULIMP: 1 })[T.tree];
         // tes décisions postflop, regroupées en spots ; couverture par tes fichiers
         let _tdC = null;
         function tdSpots(hero) {
-            const key = hero + '|' + allParsedHands.length + '|' + Object.keys(gpReg()).length; if (_tdC && _tdC.key === key) return _tdC;
+            const key = hero + '|' + allParsedHands.length + '|' + Object.keys(gpReg()).length + '|' + Object.keys(GTP).length; if (_tdC && _tdC.key === key) return _tdC;
             const G = new Map(); let tot = 0, cov = 0;
             allParsedHands.forEach(h => { if (h.buyin === 0 || !h.players.includes(hero)) return; let E; try { E = gpEvents(h); } catch (e) { E = null; } if (!E) return;
-                E.forEach(ev => { if (ev.who !== hero || ev.eff > 21) return; tot++; const ok = !!gpResolve(ev); if (ok) cov++;
+                E.forEach(ev => { if (ev.who !== hero || ev.eff > 21) return; tot++; const ok = !!gpResolve(ev) || gtpCovers(ev); if (ok) cov++;
                     const d = Math.max(4, Math.min(20, 2 * Math.round(ev.eff / 2))), pot = ev.pot || TD_POT[ev.tree];
                     const pv = ev.kind === 'xr' || ev.kind === 'xrshove' ? ev.par.b : typeof ev.par === 'number' ? ev.par : 0, pct = pv ? pv / pot : 0;
                     const bk = ev.kind === 'bet' || ev.kind === 'shove' || ev.kind === 'xr' || ev.kind === 'xrshove' ? (pv <= 1.05 ? 'm' : pct < .4 ? 's' : pct < .7 ? 'M' : 'L') : '-';
@@ -10666,11 +10666,11 @@
         function labTodoHtml(hero) {
             const D = tdSpots(hero), miss = D.L.filter(g => g.miss > 0), done = D.L.filter(g => g.miss === 0), top = miss.slice(0, 25), gain = top.reduce((a, g) => a + g.miss, 0);
             const row = (g, i) => { const s = tdSpec(g); return `<details class="rounded-xl bg-slate-900 border border-white/10 p-3"><summary class="cursor-pointer min-h-[44px] flex flex-wrap items-center gap-x-3 gap-y-1"><span class="w-6 h-6 rounded-full bg-amber-600 text-white text-xs font-black flex items-center justify-center">${i + 1}</span><span class="font-bold text-sm flex-1">${esc(s.title)} · ${g.d} BB</span><span class="text-xs text-slate-300"><b class="text-amber-300">${g.miss}</b> décisions sans fichier${g.ok ? ` (${g.ok} déjà couvertes)` : ''}</span></summary>
-                <div class="mt-2 text-sm text-slate-300 space-y-1"><div>📁 Nom du fichier : <code class="bg-slate-800 px-2 py-0.5 rounded text-amber-200 select-all">${s.name}.xlsx</code></div><div>Stacks de départ <b>${g.d} BB</b> · pot au flop <b>${tdB(g.pot)} BB</b> (préflop ${tdB(s.inv)} BB chacun) · tapis restant <b>${tdB(s.behind)} BB</b> · SPR ${tdB(s.behind / Math.max(.5, g.pot))}</div><div>Arbre : ${esc(s.sizes)}</div>
+                <div class="mt-2 text-sm text-slate-300 space-y-1"><div>📁 Nom du fichier : <code class="bg-slate-800 px-2 py-0.5 rounded text-amber-200 select-all">${s.name}.xlsx</code></div><div>Stacks de départ <b>${g.d} BB</b> · pot au flop <b>${tdB(g.pot)} BB</b> (préflop ${tdB(s.inv)} BB chacun) · tapis restant <b>${tdB(s.behind)} BB</b> · SPR ${tdB(s.behind / Math.max(.5, g.pot))}</div><div>Arbre : ${esc(s.sizes)}</div>${g.tree === 'HULIMP' ? `<div class="text-xs text-emerald-300">GTO+ (rapports main par main, un fichier par flop) : <code class="select-all">HU_SB_limp_vs_BB_call_${g.d}bb__${g.role === 'BB' && g.kind === 'first' ? 'BB_act_first' : g.role === 'SB' && g.kind === 'x' ? 'SB_after_BB_check' : g.role === 'BB' && g.kind === 'bet' ? 'BB_after_SB_bet_' + g.par + 'bb' : g.kind === 'xr' ? 'SB_after_BB_check_raise_' + g.to + 'bb' : 'SB_after_BB_bet_' + g.par + 'bb'}_on_flop_&lt;flop&gt;.txt</code></div>` : ''}
                 <div class="text-xs"><b>Hors position (${s.R.oop.pos})</b> : <span class="text-slate-400 break-all select-all">${esc(s.R.oop.s || 'pas dans ta charte : à saisir')}</span></div><div class="text-xs"><b>En position (${s.R.ip.pos})</b> : <span class="text-slate-400 break-all select-all">${esc(s.R.ip.s || 'pas dans ta charte : à saisir')}</span></div>
                 <button data-lab="tdcopy" data-i="${i}" class="mt-1 min-h-[44px] px-4 rounded-xl bg-slate-800 text-sm font-bold text-slate-200">📋 Copier ce spot</button></div></details>`; };
             return `<div class="rounded-xl bg-slate-900 border border-white/10 p-3 mb-3"><div class="text-sm text-slate-200">Tes décisions postflop dans des spots que tes fichiers peuvent couvrir : <b>${D.tot.toLocaleString('fr-FR')}</b>, dont <b class="text-emerald-300">${D.cov.toLocaleString('fr-FR')}</b> déjà couvertes par un fichier (${Math.round(100 * D.cov / Math.max(1, D.tot))} %). Les ${top.length} spots ci-dessous en couvriraient <b class="text-amber-300">${gain.toLocaleString('fr-FR')}</b> de plus (${Math.round(100 * (D.cov + gain) / Math.max(1, D.tot))} % au total).</div>
-                <div class="flex flex-wrap items-center gap-2 mt-2"><button data-lab="tdall" class="min-h-[44px] px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">📋 Copier toute la liste</button><label class="min-h-[44px] px-4 rounded-xl bg-emerald-700 text-white text-sm font-bold flex items-center cursor-pointer">📥 Importer mes fichiers solvés<input id="tdImp" type="file" multiple accept=".xls,.xlsx" class="hidden"></label><span id="tdMsg" class="text-xs text-slate-400"></span></div>
+                <div class="flex flex-wrap items-center gap-2 mt-2"><button data-lab="tdall" class="min-h-[44px] px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">📋 Copier toute la liste</button><label class="min-h-[44px] px-4 rounded-xl bg-emerald-700 text-white text-sm font-bold flex items-center cursor-pointer">📥 Importer mes fichiers solvés<input id="tdImp" type="file" multiple accept=".xls,.xlsx,.txt" class="hidden"></label><span id="tdMsg" class="text-xs text-slate-400"></span></div>
                 <div class="text-[11px] text-slate-500 mt-2">Solve dans l'ordre : le n° 1 est le spot que tu joues le plus sans référence. Garde le nom de fichier proposé : l'app reconnaît le spot toute seule à l'import, et il apparaît aussitôt dans le Mode table (encadré 🎯 Ton solveur), l'onglet GTO postflop et les textures. Les ranges viennent de tes charts ; les tailles préflop sont celles de tes réglages.</div></div>
                 <div class="space-y-2">${top.map(row).join('')}</div>${done.length ? `<div class="text-xs text-slate-400 mt-3">Déjà couverts : ${done.slice(0, 12).map(g => esc(tdTitle({ tree: g.tree, opp: g.opp, role: g.role, kind: g.kind, par: g.kind === 'xr' || g.kind === 'xrshove' ? { b: g.par, to: g.to } : g.par })) + ' · ' + g.d + ' BB (' + g.n + ')').join(' ; ')}${done.length > 12 ? ' …' : ''}</div>` : ''}`;
         }
@@ -10678,7 +10678,203 @@
             const t = b.dataset.lab === 'tdall' ? top.map((g, i) => `${i + 1}. ` + tdText(g)).join('\n\n') : tdText(top[+b.dataset.i]); const ok = () => { const o = b.textContent; b.textContent = '✓ Copié'; setTimeout(() => b.textContent = o, 1500); };
             if (navigator.clipboard) navigator.clipboard.writeText(t).then(ok, () => { }); else { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (x) { } ta.remove(); } });
         document.addEventListener('change', async e => { if (e.target.id !== 'tdImp') return; const f = [...e.target.files]; e.target.value = ''; if (!f.length) return; const m = document.getElementById('tdMsg'); if (m) m.textContent = 'Import…';
-            const before = Object.keys(gpImported).length; try { await gpImportFiles(f); } catch (x) { console.error(x); } _tdC = null; try { _txGv = txGv(); } catch (x) { } labRender(); const m2 = document.getElementById('tdMsg'); if (m2) m2.textContent = `${Object.keys(gpImported).length - before} fichier(s) ajouté(s).`; });
+            const tx = f.filter(x => /\.txt$/i.test(x.name)), xl = f.filter(x => !/\.txt$/i.test(x.name)); const before = Object.keys(gpImported).length; let G = { ok: 0, bad: [] };
+            try { if (xl.length) await gpImportFiles(xl); if (tx.length) G = await gtpImport(tx); } catch (x) { console.error(x); } _tdC = null; try { _txGv = txGv(); } catch (x) { } labRender(); const m2 = document.getElementById('tdMsg'); if (m2) m2.innerHTML = `${Object.keys(gpImported).length - before + G.ok} fichier(s) ajouté(s)${G.flops && G.flops.length ? ` (flops : ${esc([...new Set(G.flops)].join(', '))})` : ''}.${G.bad.length ? ` <span class="text-rose-300">Refusés : ${esc(G.bad.slice(0, 5).join(' ; '))}${G.bad.length > 5 ? ' …' : ''}</span>` : ''}`; });
+
+        // ===================== 93. TES SOLVES GTO+ (rapports main par main et agrégés) =====================
+        // Fichiers .txt exportés de GTO+ : « Hand … Percentage … EV (total) » (main par main, un flop) ou « Tree … Weight » (agrégé, plusieurs flops).
+        // Le nom du fichier dit le spot et le nœud : HU_SB_limp_vs_BB_call_9bb__BB_act_first_on_flop_Ah7c2d.txt
+        let GTP = {};
+        (async () => { try { GTP = (await localforage.getItem('gtp_db')) || {}; } catch (e) { GTP = {}; } })();
+        const gtpSave = () => { try { localforage.setItem('gtp_db', GTP); } catch (e) { } };
+        const gtpNum = s => { const v = parseFloat(String(s == null ? '' : s).replace(/\s/g, '').replace(',', '.')); return isFinite(v) ? v : 0; };
+        const gtpFlopN = s => { const m = String(s || '').match(/([2-9TJQKA][cdhs])/gi); return m && m.length === 3 ? m.map(c => c[0].toUpperCase() + c[1].toLowerCase()) : null; };
+        // nom de fichier → spot et nœud
+        function gtpName(name) {
+            const n = String(name).replace(/\.(txt|csv)$/i, ''); let tree = null, depth = null, m;
+            if ((m = n.match(/HU_SB_limp_vs_BB_(?:call|check)_(\d+(?:[.,]\d+)?)bb/i))) { tree = 'HULIMP'; depth = gtpNum(m[1]); }
+            else if ((m = n.match(/^SPOT_(SRP|3BP|LIMP|SBR|ISO|HUISO|HULIMP)_.*_(\d+)bb/i))) { tree = m[1].toUpperCase(); depth = +m[2]; }
+            if (!tree) return null;
+            let role, kind, par = 0;
+            if (/BB_act_fi?r?st/i.test(n)) { role = 'BB'; kind = 'first'; }
+            else if ((m = n.match(/SB_after_BB_(?:check_)?raise_(\d+(?:[.,]\d+)?)bb/i))) { role = 'SB'; kind = 'xr'; par = { b: 1, to: gtpNum(m[1]) }; }
+            else if (/SB_after_BB_check/i.test(n)) { role = 'SB'; kind = 'x'; }
+            else if ((m = n.match(/BB_after_SB_bet_(\d+(?:[.,]\d+)?)bb/i))) { role = 'BB'; kind = 'bet'; par = gtpNum(m[1]); }
+            else if ((m = n.match(/SB_after_BB_bet_(\d+(?:[.,]\d+)?)bb/i))) { role = 'SB'; kind = 'bet'; par = gtpNum(m[1]); }
+            else return null;
+            const fm = n.match(/on_flop_([2-9TJQKA][cdhs]){3}/i), flop = fm ? gtpFlopN(fm[0].slice(8)) : null;
+            return { tree, depth, role, kind, par, flop };
+        }
+        const gtpNodeK = o => [o.tree, o.depth, o.role, o.kind, typeof o.par === 'object' ? o.par.to : o.par].join('|');
+        const GTP_NODE = { first: (o, opp) => `${o.role} parle en premier`, x: (o, opp) => `${opp} checke → ${o.role}`, bet: (o, opp) => `${opp} mise ${String(o.par).replace('.', ',')} BB → ${o.role}`, xr: (o, opp) => `Tu mises, ${opp} check-raise à ${String(o.par.to).replace('.', ',')} BB → ${o.role}` };
+        function gtpParse(name, text) {
+            const id = gtpName(name); if (!id) return { err: 'nom de fichier non reconnu' };
+            const L = String(text).split(/\r?\n/), H = L[0].split('\t').map(x => x.trim()), foot = k => { const m = String(text).match(new RegExp('^' + k + ':\\s*([\\d.,]+)', 'mi')); return m ? gtpNum(m[1]) : null; };
+            const base = { ...id, pot: foot('pot'), stack: foot('stack'), call: foot('to call'), name: String(name) };
+            if (H[0] === 'Hand') { if (!id.flop) return { err: 'flop absent du nom (…_on_flop_Ah7c2d)' };
+                const pI = H.indexOf('Percentage'), eI = H.indexOf('EV (total)'), wI = H.indexOf('Combos (total)'); if (pI < 0 || eI < 0) return { err: 'colonnes Percentage / EV absentes' };
+                const acts = []; for (let i = pI + 1; i < H.length && H[i]; i++) acts.push(H[i]); const n = acts.length, C = [], W = [], F = [], E = [];
+                L.slice(1).forEach(l => { const c = l.split('\t'); if (!/^[2-9TJQKA][cdhs][2-9TJQKA][cdhs]$/i.test(c[0] || '')) return; C.push(c[0]); W.push(Math.round(1000 * gtpNum(c[wI])) / 1000);
+                    for (let i = 0; i < n; i++) { F.push(Math.round(gtpNum(c[pI + 1 + i]) * 10) / 1000); E.push(Math.round(gtpNum(c[eI + 1 + i]) * 1000) / 1000); } });
+                if (!C.length) return { err: 'aucune main lue' }; return { rec: { ...base, type: 'hand', acts, C, W, F, E } }; }
+            if (/^Tree$/i.test(H[0])) { const wI = H.findIndex(x => /^Weight$/i.test(x)), acts = H.slice(3, wI < 0 ? H.length : wI).filter(Boolean), fl = {};
+                L.slice(1).forEach(l => { const c = l.split('\t'), f = gtpFlopN(c[0]); if (!f || c[0].length > 8) return; fl[f.join('')] = { f: acts.map((_, i) => gtpNum(c[3 + i]) / 100), w: wI < 0 ? 1 : gtpNum(c[wI]), eq: gtpNum(c[1]), ev: gtpNum(c[2]) }; });
+                if (!Object.keys(fl).length) return { err: 'aucun flop lu' }; return { rec: { ...base, flop: null, type: 'agg', acts, fl } }; }
+            return { err: 'format non reconnu (en-tête Hand ou Tree attendu)' };
+        }
+        async function gtpImport(files) { const out = { ok: 0, bad: [], flops: [] };
+            for (const f of files) { let t = ''; try { t = await f.text(); } catch (e) { } const r = gtpParse(f.name, t); if (r.err) { out.bad.push(f.name + ' : ' + r.err); continue; }
+                const R = r.rec, k = gtpNodeK(R) + '|' + (R.type === 'hand' ? R.flop.join('') : 'agg'); GTP[k] = R; out.ok++; if (R.type === 'hand') (out.flops = out.flops || []).push(R.flop.join('')); }
+            _gtpCat.clear(); gtpSave(); return out; }
+        // flops : même structure de couleurs → correspondance exacte ; sinon flop le plus proche
+        const GTP_SP = ['c', 'd', 'h', 's'], GTP_PERM = (() => { const P = []; const go = (a, r) => { if (!r.length) return P.push(a); r.forEach((x, i) => go([...a, x], r.filter((_, j) => j !== i))); }; go([], GTP_SP); return P; })();
+        function gtpIso(A, B) { const ra = A.map(c => c[0]).sort().join(''), rb = B.map(c => c[0]).sort().join(''); if (ra !== rb) return null; const SB = new Set(B);
+            for (const p of GTP_PERM) { const mp = {}; GTP_SP.forEach((s, i) => mp[s] = p[i]); if (A.every(c => SB.has(c[0] + mp[c[1]]))) return mp; } return null; }
+        const GTP_RV = c => TX_RK.indexOf(c[0]), gtpFl = F => F.map(c => c[0] + ({ c: '♣', d: '♦', h: '♥', s: '♠' })[c[1]]).join(' ');
+        function gtpDist(A, B) { const fa = txFamOf3(A), fb = txFamOf3(B), ra = A.map(GTP_RV).sort((x, y) => y - x), rb = B.map(GTP_RV).sort((x, y) => y - x), su = X => new Set(X.map(c => c[1])).size, pr = r => r[0] === r[1] || r[1] === r[2] ? 1 : 0;
+            return (fa !== fb ? 50 : 0) + 3 * Math.abs(ra[0] - rb[0]) + 2 * Math.abs(ra[1] - rb[1]) + Math.abs(ra[2] - rb[2]) + (pr(ra) !== pr(rb) ? 20 : 0) + (su(A) !== su(B) ? 6 : 0) + .5 * Math.abs((ra[0] - ra[2]) - (rb[0] - rb[2])); }
+        // stratégie par catégorie de main sur un flop solvé (pour l'appliquer à un flop voisin)
+        const _gtpCat = new Map();
+        function gtpCatStats(R) { const k = gtpNodeK(R) + R.flop.join(''); if (_gtpCat.has(k)) return _gtpCat.get(k); const n = R.acts.length, S = {};
+            R.C.forEach((c, i) => { const w = R.W[i]; if (!w) return; const cat = txCat(c.slice(0, 2) + ' ' + c.slice(2), R.flop) || 'air', o = S[cat] || (S[cat] = { w: 0, f: new Array(n).fill(0) }); o.w += w; for (let j = 0; j < n; j++) o.f[j] += w * R.F[i * n + j]; });
+            Object.values(S).forEach(o => o.f = o.f.map(v => v / o.w)); _gtpCat.set(k, S); return S; }
+        const gtpRecs = (tree, role, kind, par) => Object.values(GTP).filter(R => R.tree === tree && R.role === role && R.kind === kind && (kind === 'bet' ? Math.abs(Math.log(Math.max(.1, R.par) / Math.max(.1, par || R.par))) < .35 : kind === 'xr' ? (!par || Math.abs(Math.log(Math.max(.1, R.par.to) / Math.max(.1, par.to || R.par.to))) < .3) : true));
+        function gtpPick(tree, role, kind, par, eff, board) {
+            const L = gtpRecs(tree, role, kind, par).filter(R => R.type === 'hand' && Math.abs(R.depth - eff) <= 2.5); if (!L.length) return null;
+            const dmin = Math.min(...L.map(R => Math.abs(R.depth - eff))), M = L.filter(R => Math.abs(R.depth - eff) === dmin);
+            if (board) { for (const R of M) { const mp = gtpIso(board, R.flop); if (mp) return { R, mp, exact: true }; } let b = null, bd = 1e9; M.forEach(R => { const d = gtpDist(board, R.flop); if (d < bd) { bd = d; b = R; } }); return { R: b, exact: false, d: bd }; }
+            return { R: M[0], exact: false, fam: true, all: M };
+        }
+        // stratégie de ta main (classe de la grille) sur ce nœud
+        function gtpHero(P, ci, board) {
+            const R = P.R, n = R.acts.length, cmb = cellCombos(ci).map(([x, y]) => [MP_DECK[x], MP_DECK[y]]).filter(h => !board || (!board.includes(h[0]) && !board.includes(h[1]))), f = new Array(n).fill(0), e = new Array(n).fill(0); let tw = 0, te = 0, nin = 0;
+            if (P.exact) { const idx = new Map(R.C.map((c, i) => [c, i])), inv = {}; Object.entries(P.mp).forEach(([a, b]) => inv[a] = b);
+                cmb.forEach(h => { const m = h.map(c => c[0] + P.mp[c[1]]), i = idx.has(m[0] + m[1]) ? idx.get(m[0] + m[1]) : idx.get(m[1] + m[0]); if (i == null) return; const w = R.W[i] || 0, ww = w || 1e-6; if (w > 0) nin++;
+                    for (let j = 0; j < n; j++) { f[j] += ww * R.F[i * n + j]; e[j] += R.E[i * n + j]; } tw += ww; te++; });
+                if (!tw) return null; return { f: f.map(v => v / tw), e: e.map(v => v / te), inRange: nin > 0, n: te }; }
+            if (!board) return null; const S = gtpCatStats(R), ord = ['fort', 'ovp', 'top', 'mid', 'draw', 'air'];
+            cmb.forEach(h => { let c = txCat(h.join(' '), board) || 'air'; if (!S[c]) { const i = ord.indexOf(c); c = ord.slice(i).concat(ord.slice(0, i).reverse()).find(x => S[x]) || null; } if (!c) return; for (let j = 0; j < n; j++) f[j] += S[c].f[j]; tw++; });
+            if (!tw) return null; return { f: f.map(v => v / tw), e: null, inRange: true, n: tw };
+        }
+        function gtpRange(P) { const R = P.R, n = R.acts.length, f = new Array(n).fill(0); let t = 0; R.C.forEach((_, i) => { const w = R.W[i]; t += w; for (let j = 0; j < n; j++) f[j] += w * R.F[i * n + j]; }); return t ? f.map(v => v / t) : f; }
+        const GTP_COL = a => /fold/i.test(a) ? '#475569' : /check/i.test(a) ? '#0ea5e9' : /call/i.test(a) ? '#10b981' : /raise/i.test(a) ? '#f97316' : '#f59e0b';
+        const gtpLab = (a, R) => { const m = a.match(/^(Bet|Raise)\s+([\d.,]+)/i); if (!m) return { Check: 'Check', Call: 'Paie', Fold: 'Couche' }[a] || a; const v = gtpNum(m[2]), all = R.stack != null && v >= R.stack - 1e-6; return all ? 'Tapis' : (/bet/i.test(m[1]) ? `Mise ${String(v).replace('.', ',')} BB` : `Relance à ${String(v).replace('.', ',')} BB`); };
+        function gtpBar(R, f, e) { const it = R.acts.map((a, j) => ({ a, l: gtpLab(a, R), v: f[j], ev: e ? e[j] : null })).filter(x => x.v > .005 || (e && x.ev != null));
+            const best = e ? it.reduce((b, x) => x.ev > b.ev ? x : b, it[0]) : null, show = it.filter(x => x.v > .005);
+            return `<div class="flex h-7 rounded-lg overflow-hidden mt-1">${show.map(x => `<div style="width:${100 * x.v}%;background:${GTP_COL(x.a)}" class="flex items-center justify-center text-[10px] font-bold text-white">${x.v >= .1 ? Math.round(100 * x.v) + ' %' : ''}</div>`).join('')}</div>
+                <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-slate-200 mt-1">${it.sort((a, b) => b.v - a.v).map(x => `<span${best && x === best ? ' class="text-emerald-300 font-bold"' : ''}><span class="inline-block w-2.5 h-2.5 rounded-sm mr-1 align-middle" style="background:${GTP_COL(x.a)}"></span>${x.l} <b>${Math.round(100 * x.v)} %</b>${x.ev != null ? ` <span class="text-slate-400">EV ${x.ev.toFixed(2).replace('.', ',')}</span>` : ''}</span>`).join('')}</div>`; }
+        // ---- Mode table : pots limpés en heads-up ----
+        function gtpCtx(C) { if (!C || !C.linked || !C.hu || C.seats.length !== 2) return null; const has = (w, a) => (C.line || []).some(x => x.w === w && x.a === a);
+            if (has('SB', 'limp') && !has('BB', 'raise') && !has('BB', 'shove')) return { tree: 'HULIMP', opp: 'BB' }; return null; }
+        function gtpHtml(C) {
+            const T = gtpCtx(C); if (!T || !Object.keys(GTP).length) return ''; const me = C.pos(0), oppP = me === 'SB' ? 'BB' : 'SB', eff0 = Math.min(...C.seats.map(k => mtQ(MT.st[k]))), board = C.cards && C.cards.length === 3 ? C.cards : null;
+            const nodes = me === 'BB' ? [['first', 0], ...[...new Set(gtpRecs(T.tree, 'BB', 'bet').map(R => R.par))].map(p => ['bet', p])] : [['x', 0], ...[...new Set(gtpRecs(T.tree, 'SB', 'xr').map(R => R.par.to))].map(t => ['xr', { b: 1, to: t }]), ...[...new Set(gtpRecs(T.tree, 'SB', 'bet').map(R => R.par))].map(p => ['bet', p])];
+            let h = '', tag = '';
+            nodes.forEach(([kind, par]) => { const P = gtpPick(T.tree, me, kind, par, eff0, board); if (!P || !P.R) return; const R = P.R, o = { role: me, kind, par: R.par };
+                if (!tag) tag = P.exact ? `flop exact solvé (${gtpFl(R.flop)})` : board ? `flop solvé le plus proche : ${gtpFl(R.flop)}` : 'touche les 3 cartes du flop';
+                const hero = mtCell != null && board ? gtpHero(P, mtCell, board) : null, rg = gtpRange(P);
+                h += `<div class="mt-2 pt-2 border-t border-white/10 first:border-0 first:pt-0 first:mt-1"><div class="text-[11px] uppercase font-bold text-amber-300">${GTP_NODE[kind](o, oppP)}</div>
+                    ${!hero && mtCell != null && board ? `<div class="text-xs text-amber-300 mt-1">${cname(mtCell)} n'est pas dans la range du solve à ce nœud (ta charte la joue autrement avant le flop).</div>` : ''}${hero ? `<div class="text-xs text-slate-300 mt-1">Ta main <b class="text-white">${cname(mtCell)}</b>${hero.inRange ? '' : ' <span class="text-amber-300">(hors de ta range à ce nœud dans le solve)</span>'}${P.exact ? '' : ' · par catégorie de main'}</div>${gtpBar(R, hero.f, hero.e)}` : ''}
+                    <div class="text-[11px] text-slate-400 mt-1">Toute la range : ${R.acts.map((a, j) => `${gtpLab(a, R)} ${Math.round(100 * rg[j])} %`).filter((_, j) => rg[j] > .005).join(' · ')}</div></div>`; });
+            if (!h) return '';
+            const dep = Object.values(GTP).find(R => R.tree === T.tree) || {};
+            return `<div class="rounded-2xl bg-emerald-950/40 border border-emerald-400/40 p-3 mb-2"><div class="flex items-baseline justify-between gap-2 flex-wrap"><div class="font-bold">🎯 Ton solveur GTO+ · ${tag}</div><div class="text-[11px] text-slate-400">HU limp/check · fichier ${dep.depth} BB (toi ${String(eff0).replace('.', ',')} BB)</div></div>${h}
+                <div class="text-[10.5px] text-slate-500 mt-1">${board && !/exact/.test(tag) ? 'Flop non solvé : stratégie de ta catégorie de main (top paire, paire moyenne, tirage…) sur le flop solvé le plus proche. Les EV ne s\'affichent que sur un flop exact.' : 'EV en BB de chaque action pour ta main (moyenne de ses combinaisons). En vert : la meilleure.'}</div></div>`;
+        }
+        { const _mvT = mpVerdictHtml; mpVerdictHtml = function (C, hero, st, V) { const r = _mvT.apply(this, arguments); if (st !== 'F') return r; let g = ''; try { g = gtpHtml(C); } catch (e) { console.error('gtp', e); } return g + r; }; }
+        // ---- tes mains : pots limpés en heads-up suivis comme les autres spots ----
+        { const _hu2 = gpEventsHU2; gpEventsHU2 = function (h, bb, st) { const r = _hu2.apply(this, arguments); if (r) return r; try {
+                const A = l => { const m = l.match(/^(.+?) (folds|checks|calls|bets|raises)(?: (\d+))?(?: to (\d+))?( and is all-in)?/); return m ? { p: m[1], k: m[2], a: m[3] ? +m[3] : 0, to: m[4] ? +m[4] : 0, all: !!m[5] } : null; };
+                const pre = h.preflop.map(A).filter(Boolean); if (pre.length !== 2 || !(pre[0].p === st.sb && pre[0].k === 'calls' && pre[1].p === st.bb && pre[1].k === 'checks')) return null;
+                const cnt = {}, fl = h.flop.map(A).filter(Boolean); fl.forEach(x => { x.nth = cnt[x.p] = (cnt[x.p] || 0); cnt[x.p]++; });
+                const eff = Math.min(h.stacks[st.sb], h.stacks[st.bb]) / bb, pot = 2, out = [], tree = 'HULIMP';
+                const act = x => ({ k: x.k === 'checks' ? 'check' : x.k === 'bets' ? 'bet' : x.k === 'calls' ? 'call' : x.k === 'folds' ? 'fold' : 'raise', size: (x.k === 'raises' ? x.to : x.a) / bb, all: x.all });
+                const ev = (role, kind, par, x) => out.push({ tree, opp: 'BB', role, kind, par, eff, pot, who: x.p, act: act(x), nth: x.nth });
+                const a0 = fl[0]; if (!a0 || a0.p !== st.bb) return null; ev('BB', 'first', 0, a0);
+                if (a0.k === 'checks') { const a1 = fl[1]; if (a1 && a1.p === st.sb) { ev('SB', 'x', 0, a1); if (a1.k === 'bets') { const a2 = fl[2]; if (a2 && a2.p === st.bb) { ev('BB', 'bet', a1.a / bb, a2); if (a2.k === 'raises' && !a2.all) { const a3 = fl[3]; if (a3 && a3.p === st.sb) ev('SB', 'xr', { b: a1.a / bb, to: a2.to / bb }, a3); } } } } }
+                else if (a0.k === 'bets') { const a1 = fl[1]; if (a1 && a1.p === st.sb) ev('SB', 'bet', a0.a / bb, a1); }
+                return out.length ? out : null; } catch (e) { return null; } }; }
+        const gtpCovers = ev => Object.values(GTP).some(R => R.tree === ev.tree && R.role === ev.role && R.kind === ev.kind && Math.abs(R.depth - ev.eff) <= 1.5 && (ev.kind === 'bet' ? Math.abs(Math.log(Math.max(.1, ev.par) / Math.max(.1, R.par))) < .35 : ev.kind === 'xr' ? Math.abs(Math.log(Math.max(.1, ev.par.to) / Math.max(.1, R.par.to))) < .3 : true));
+        // ---- Postflop Lab : bilan de tes fichiers GTO+ ----
+        function gtpLibHtml(hero) {
+            const G = {}; Object.values(GTP).forEach(R => { const k = gtpNodeK(R); const g = G[k] || (G[k] = { R, hand: [], agg: 0 }); if (R.type === 'hand') { g.hand.push(R.flop); if (g.R.type !== 'hand') g.R = R; } else g.agg = Object.keys(R.fl).length; });
+            const L = Object.values(G); if (!L.length) return '';
+            // tes décisions réelles sur chaque nœud (profondeur du fichier ± 1,5 BB), et combien tombent sur un flop déjà solvé
+            const E = []; if (hero) allParsedHands.forEach(h => { if (h.buyin === 0 || !h.players.includes(hero)) return; const ev = gpEvents(h); if (!ev) return; ev.forEach(x => { if (x.who === hero) E.push({ x, b: (h.board || '').split(' ').slice(0, 3) }); }); });
+            const row = g => { const R = g.R, opp = R.role === 'SB' ? 'BB' : 'SB', nf = g.hand.length, pc = Math.min(100, Math.round(100 * nf / 31));
+                const mine = E.filter(o => o.x.tree === R.tree && o.x.role === R.role && o.x.kind === R.kind && Math.abs(o.x.eff - R.depth) <= 1.5 && (R.kind === 'bet' ? Math.abs(Math.log(Math.max(.1, o.x.par) / Math.max(.1, R.par))) < .35 : R.kind === 'xr' ? Math.abs(Math.log(Math.max(.1, o.x.par.to) / Math.max(.1, R.par.to))) < .3 : true));
+                const ex = mine.filter(o => o.b.length === 3 && g.hand.some(F => gtpIso(o.b, F))).length;
+                return `<div class="py-2 border-t border-white/5 first:border-0"><div class="text-sm text-slate-200">${TD_TREE[R.tree] || R.tree} · ${R.depth} BB · <b>${GTP_NODE[R.kind](R, opp)}</b></div>
+                    <div class="flex items-center gap-2 mt-1"><div class="flex-1 h-2.5 rounded bg-slate-800 overflow-hidden"><div class="h-2.5 ${nf >= 31 ? 'bg-emerald-500' : 'bg-amber-500'}" style="width:${pc}%"></div></div><span class="text-sm font-bold ${nf >= 31 ? 'text-emerald-300' : 'text-amber-300'} whitespace-nowrap">${nf} / 31 flops</span></div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">${g.hand.map(gtpFl).join(' · ') || 'aucun flop main par main'}${g.agg ? ` · rapport agrégé : ${g.agg} flops` : ''}</div>
+                    ${hero ? `<div class="text-[11px] text-slate-400">Dans tes mains : <b class="text-slate-200">${mine.length}</b> décision${mine.length > 1 ? 's' : ''} à ce nœud entre ${String(R.depth - 1.5).replace('.', ',')} et ${String(R.depth + 1.5).replace('.', ',')} BB, dont <b class="text-emerald-300">${ex}</b> sur un flop déjà solvé (les autres utilisent le flop le plus proche).</div>` : ''}</div>`; };
+            return `<div class="rounded-xl bg-emerald-950/30 border border-emerald-400/30 p-3 mb-3"><div class="font-bold text-sm mb-1">📚 Tes solves GTO+ importés</div>${L.map(row).join('')}
+                <div class="text-[11px] text-slate-500 mt-1">Chaque import ajoute ses flops au compteur (un même flop réimporté remplace l'ancien). Objectif : 31 flops pour chaque nœud.</div><button data-lab="gtpclr" class="mt-2 min-h-[40px] px-3 rounded-lg bg-slate-800 text-xs text-slate-300">Effacer mes fichiers GTO+</button></div>`;
+        }
+        { const _ltd = labTodoHtml; labTodoHtml = function (hero) { let g = ''; try { g = gtpLibHtml(hero); } catch (e) { console.error('gtpLib', e); } return g + _ltd(hero); }; }
+        document.addEventListener('click', e => { const b = e.target.closest('#labBox [data-lab="gtpclr"]'); if (!b) return; if (!confirm('Effacer tous tes fichiers GTO+ importés ?')) return; GTP = {}; _gtpCat.clear(); gtpSave(); try { _tdC = null; } catch (x) { } labRender(); });
+        // ===================== 93b. TES MAINS ET TES ENTRAÎNEMENTS JUGÉS PAR TES SOLVES GTO+ =====================
+        const gtpGrp = a => /^check/i.test(a) ? 'x' : /^fold/i.test(a) ? 'f' : /^call/i.test(a) ? 'c' : /^raise/i.test(a) ? 'r' : 'b';
+        const gtpOrd = a => ({ x: 0, f: 1, c: 2, b: 3, r: 4 })[gtpGrp(a)] * 100 + gtpNum((a.match(/[\d.,]+/) || [0])[0]);
+        // ton action réelle → action du fichier (taille la plus proche, tapis si tu étais à tapis)
+        function gtpMapAct(R, k, size, all) {
+            const g = k === 'check' || k === 'checks' ? 'x' : k === 'fold' || k === 'folds' ? 'f' : k === 'call' || k === 'calls' ? 'c' : k === 'raise' || k === 'raises' ? 'r' : 'b';
+            const C = R.acts.map((a, j) => ({ a, j, v: gtpNum((a.match(/[\d.,]+/) || [0])[0]) })).filter(x => gtpGrp(x.a) === g); if (!C.length) return -1; if (C.length === 1) return C[0].j;
+            const mx = C.reduce((a, x) => x.v > a.v ? x : a, C[0]); if (all) return mx.j;
+            const nonAll = C.filter(x => R.stack == null || x.v < R.stack - 1e-6), L = nonAll.length ? nonAll : C;
+            return L.reduce((a, x) => Math.abs(Math.log(Math.max(.1, x.v) / Math.max(.1, size || x.v))) < Math.abs(Math.log(Math.max(.1, a.v) / Math.max(.1, size || a.v))) ? x : a, L[0]).j;
+        }
+        // stratégie du solveur pour UNE combinaison (flop exact) ou sa catégorie (flop proche)
+        function gtpCombo(P, hc, board) {
+            const R = P.R, n = R.acts.length, H = hc.split(' ');
+            if (P.exact) { const m = H.map(c => c[0] + P.mp[c[1]]), idx = R.C.indexOf(m[0] + m[1]) >= 0 ? R.C.indexOf(m[0] + m[1]) : R.C.indexOf(m[1] + m[0]); if (idx < 0) return null;
+                return { f: R.F.slice(idx * n, idx * n + n), e: R.E.slice(idx * n, idx * n + n), w: R.W[idx], exact: true }; }
+            const S = gtpCatStats(R), ord = ['fort', 'ovp', 'top', 'mid', 'draw', 'air']; let c = txCat(hc, board) || 'air';
+            if (!S[c]) { const i = ord.indexOf(c); c = ord.slice(i).concat(ord.slice(0, i).reverse()).find(x => S[x]) || null; } if (!c) return null;
+            return { f: S[c].f.slice(), e: null, w: 1, exact: false };
+        }
+        // ---- 1. tes décisions réelles en pot limpé HU, comparées à ton solveur ----
+        let _gtpJ = null;
+        function gtpJudge(hero) {
+            const key = hero + '|' + allParsedHands.length + '|' + Object.keys(GTP).length; if (_gtpJ && _gtpJ.key === key) return _gtpJ; const L = [];
+            allParsedHands.forEach(h => { if (h.buyin === 0 || !h.players.includes(hero) || !(h.hole && h.hole[0] === hero)) return; const E = gpEvents(h); if (!E) return; const board = (h.board || '').split(' ').slice(0, 3); if (board.length < 3) return;
+                E.forEach(ev => { if (ev.who !== hero || ev.tree !== 'HULIMP') return; const P = gtpPick('HULIMP', ev.role, ev.kind, ev.par, ev.eff, board); if (!P || !P.R) return;
+                    const S = gtpCombo(P, h.hole[1], board); if (!S) return; const R = P.R, j = gtpMapAct(R, ev.act.k, ev.act.size, ev.act.all); if (j < 0) return;
+                    const best = S.e ? S.e.indexOf(Math.max(...S.e)) : S.f.indexOf(Math.max(...S.f)), cost = S.e ? Math.max(0, S.e[best] - S.e[j]) : null;
+                    L.push({ h, ev, R, S, j, best, fch: S.f[j], err: S.f[j] < .1, cost, cat: txCat(h.hole[1], board) || 'air', node: ev.role + '|' + ev.kind, exact: S.exact, hc: h.hole[1], board }); }); });
+            return _gtpJ = { key, L };
+        }
+        function gtpJudgeHtml(hero) {
+            if (!Object.keys(GTP).length) return ''; const J = gtpJudge(hero), L = J.L; if (!L.length) return '';
+            const err = L.filter(x => x.err), ex = L.filter(x => x.exact), cost = ex.reduce((a, x) => a + (x.cost || 0), 0), G = {};
+            L.forEach(x => { const k = x.node + '|' + x.cat, g = G[k] || (G[k] = { x, n: 0, e: 0, me: {}, sol: {} }); g.n++; if (x.err) g.e++; const a = gtpLab(x.R.acts[x.j], x.R); g.me[a] = (g.me[a] || 0) + 1; x.R.acts.forEach((ac, i) => { const l = gtpLab(ac, x.R); g.sol[l] = (g.sol[l] || 0) + x.S.f[i]; }); });
+            const NL = { 'BB|first': 'BB parle en premier', 'SB|x': 'BB checke → toi SB', 'BB|bet': 'SB mise → toi BB', 'SB|xr': 'BB check-raise → toi SB', 'SB|bet': 'BB mise → toi SB' };
+            const rows = Object.values(G).filter(g => g.n >= 5).sort((a, b) => b.e - a.e || b.n - a.n).slice(0, 14).map(g => { const acts = [...new Set([...Object.keys(g.me), ...Object.keys(g.sol)])].filter(a => (g.me[a] || 0) / g.n > .04 || (g.sol[a] || 0) / g.n > .04);
+                return `<tr class="border-t border-white/5"><td class="py-1.5 pr-2">${NL[g.x.node] || g.x.node}</td><td class="px-2">${TX_CATL[g.x.cat] || g.x.cat}</td><td class="px-2 text-center">${g.n} ${relDot(g.n)}</td><td class="px-2 text-center font-bold ${g.e / g.n > .25 ? 'text-rose-400' : g.e / g.n > .1 ? 'text-amber-300' : 'text-emerald-400'}">${labPc(g.e / g.n)}</td><td class="px-2 text-xs">${acts.map(a => `${a} : toi <b>${labPc((g.me[a] || 0) / g.n)}</b> · solveur ${labPc((g.sol[a] || 0) / g.n)}`).join('<br>')}</td></tr>`; }).join('');
+            const top = err.slice().sort((a, b) => (b.cost || 0) - (a.cost || 0) || a.fch - b.fch).slice(0, 40);
+            const item = x => `<div class="flex items-center gap-3 px-3 py-2 border-b border-white/5 text-sm"><button data-gtpo="${esc(x.h.id)}" class="flex-1 text-left min-h-[40px]"><span class="text-base">${x.hc.split(' ').map(labMini).join(' ')}</span> <span class="text-slate-400">sur</span> ${x.board.map(labMini).join(' ')} <span class="text-xs text-slate-400">${NL[x.node] || x.node} · tu joues <b class="text-rose-300">${gtpLab(x.R.acts[x.j], x.R)}</b> (solveur ${labPc(x.fch)}) · solveur : <b class="text-emerald-300">${gtpLab(x.R.acts[x.best], x.R)}</b> ${labPc(x.S.f[x.best])}${x.cost != null ? ` · coût ${simF1(x.cost)} BB` : ' · flop proche'}</span></button><button data-lab="srsadd" data-k="${esc(x.h.id + '|F')}" class="min-h-[40px] px-3 rounded-lg ${LAB.srs[x.h.id + '|F'] ? 'bg-slate-700 text-slate-400' : 'bg-slate-800 text-slate-200'} text-xs font-bold">${LAB.srs[x.h.id + '|F'] ? 'Dans la file' : '+ File du jour'}</button></div>`;
+            return `<div class="rounded-xl bg-emerald-950/30 border border-emerald-400/30 p-3 mt-3"><div class="font-bold">🎯 Tes décisions jugées par ton solveur GTO+ <span class="text-sm font-normal text-slate-400">(pots limpés en heads-up, au flop)</span></div>
+                <div class="text-sm text-slate-300 mt-1">${L.length} décisions comparées : tu joues comme le solveur (action qu'il joue au moins 10 % du temps) dans <b class="text-emerald-300">${labPc(1 - err.length / L.length)}</b> des cas. ${err.length} écarts nets.${ex.length ? ` Sur les ${ex.length} décisions tombées sur un flop solvé exact, tes écarts coûtent <b>${simF1(cost)} BB</b> au total (${simF1(cost / ex.length * 100)} BB pour 100 décisions).` : ''}</div>
+                <div class="overflow-x-auto mt-2"><table class="w-full text-sm"><thead><tr class="text-[10px] uppercase text-slate-400"><th class="text-left">Nœud</th><th class="text-left px-2">Ta main</th><th class="px-2">Décisions</th><th class="px-2">Écarts</th><th class="text-left px-2">Tes actions et celles du solveur</th></tr></thead><tbody>${rows}</tbody></table></div>
+                ${top.length ? `<div class="font-bold text-sm mt-3">Tes plus gros écarts</div><div class="max-h-80 overflow-auto custom-scrollbar border border-white/10 rounded-lg mt-1">${top.map(item).join('')}</div>` : ''}
+                <div class="text-[11px] text-slate-500 mt-2">Sur un flop exact, l'app compare ta combinaison et chiffre l'écart en BB. Sur les autres flops, elle prend la stratégie de ta catégorie de main sur le flop solvé le plus proche : l'écart est une indication, sans coût chiffré. Profondeur du fichier ± 2,5 BB. Ajoute une main à ta File du jour pour la rejouer en entraînement, corrigée par ton solveur.</div></div>`;
+        }
+        { const _llh = labLeakHtml; labLeakHtml = function (hero) { let g = ''; try { g = gtpJudgeHtml(hero); } catch (e) { console.error('gtpJudge', e); } return _llh(hero) + g; }; }
+        document.addEventListener('click', e => { const b = e.target.closest('#labBox [data-gtpo]'); if (!b) return; const h = allParsedHands.find(x => x.id === b.dataset.gtpo); if (h) startReplay(h, null, null, { ctx: 'Pot limpé HU · flop' }); });
+        // ---- 2. les entraînements corrigés par ton solveur sur ces spots ----
+        function gtpDrill(d) {
+            const L = d.L, h = d.h, hero = playerSelect.value; if (!L || L.fmt !== 'HU' || L.potT !== 'L' || d.st !== 'F' || !Object.keys(GTP).length) return null;
+            const sb = L.ord.find(p => L.posOf(p) === 'SB'), bb = L.ord.find(p => L.posOf(p) === 'BB'); if (!sb || !bb || L.preAct[sb] !== 'calls' || L.preAct[bb] !== 'checks') return null;
+            const role = L.posOf(hero), e = d.e; let kind, par = 0;
+            if (d.type === 'free') { if (role === 'BB') kind = 'first'; else { const prev = L.E.slice(0, d.i).filter(x => x.st === 'F'); if (prev.length !== 1 || prev[0].k !== 'checks') return null; kind = 'x'; } }
+            else { kind = 'bet'; par = e.call; }
+            const eff = Math.min(...h.players.map(p => h.stacks[p])) / L.bb, P = gtpPick('HULIMP', role, kind, par, eff, d.board); if (!P || !P.R) return null;
+            const S = gtpCombo(P, d.hc, d.board); if (!S) return null; const R = P.R, pot = Math.max(.5, e.pot);
+            const o = R.acts.map((a, j) => ({ a, j })).sort((x, y) => gtpOrd(x.a) - gtpOrd(y.a)).map(({ a, j }) => ({ l: gtpLab(a, R), g: gtpGrp(a), ev: S.e ? S.e[j] : S.f[j] * pot * .3, sf: S.f[j], j }));
+            const best = o.reduce((a, x) => x.ev > a.ev ? x : a, o[0]), dj = gtpMapAct(R, e.k, e.k === 'raises' ? e.amt : e.amt, e.all), did = (o.find(x => x.j === dj) || o[0]).l;
+            return { o, best, eq: null, share: null, did, pot, eff: e.eff, noEv: !S.e, src: `🎯 Corrigé par ton solveur GTO+ (${R.depth} BB) · ${S.exact ? `flop exact solvé (${gtpFl(R.flop)}), EV de ta combinaison` : `flop solvé le plus proche (${gtpFl(R.flop)}), stratégie de ta catégorie de main : une action que le solveur joue souvent compte comme bonne`}.` };
+        }
+        { const _leG = labEval; labEval = function (d) { if (d.ev) return d.ev; let g = null; try { g = gtpDrill(d); } catch (x) { console.error('gtpDrill', x); } if (g) return d.ev = g; return _leG(d); }; }
 
 </script>
 </body>
