@@ -10339,8 +10339,8 @@
         function labRender() {
             const box = document.getElementById('labBox'), hero = playerSelect.value; if (!box) return;
             if (!hero || !allParsedHands.length) { box.innerHTML = '<p class="text-slate-400 text-sm p-4">Importe tes HH et choisis ton pseudo.</p>'; return; }
-            const segs = [['train', '🎯 Entraînement'], ['leak', '🩹 Fuites postflop'], ['fs', '📋 Fiche solveur'], ['tl', '👁 Tells de taille'], ['tool', '🧮 Outils'], ['todo', '🗂 Spots à solver']];
-            let body = ''; try { body = LAB.seg === 'leak' ? labLeakHtml(hero) : LAB.seg === 'fs' ? labFsHtml(hero) : LAB.seg === 'tl' ? labTlHtml(hero) : LAB.seg === 'tool' ? labToolHtml(hero) : LAB.seg === 'todo' ? labTodoHtml(hero) : labTrainHtml(hero); } catch (e) { console.error('lab', e); body = `<div class="text-rose-300 text-sm">${esc(e.message)}</div>`; }
+            const segs = [['train', '🎯 Entraînement'], ['leak', '🩹 Fuites postflop'], ['fs', '📋 Fiche solveur'], ['tl', '👁 Tells de taille'], ['tool', '🧮 Outils'], ['todo', '🗂 Spots à solver'], ['tree', '🌳 Arbre de tes lignes'], ['mx', '🧩 Matrice & familles']];
+            let body = ''; try { body = LAB.seg === 'leak' ? labLeakHtml(hero) : LAB.seg === 'fs' ? labFsHtml(hero) : LAB.seg === 'tl' ? labTlHtml(hero) : LAB.seg === 'tool' ? labToolHtml(hero) : LAB.seg === 'todo' ? labTodoHtml(hero) : LAB.seg === 'tree' ? labTreeHtml(hero) : LAB.seg === 'mx' ? fxHtml(hero) : labTrainHtml(hero); } catch (e) { console.error('lab', e); body = `<div class="text-rose-300 text-sm">${esc(e.message)}</div>`; }
             box.innerHTML = `<div class="flex flex-wrap gap-1.5 mb-3">${segs.map(([v, l]) => `<button data-lab="seg" data-v="${v}" class="min-h-[44px] px-4 rounded-xl text-sm font-bold ${LAB.seg === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('')}</div><div class="pc">${body}</div>`;
             clearInterval(_labTm); const Q = LAB.q;
             if (LAB.seg === 'train' && Q && !Q.done && !Q.ans && Q.g === 'bc') { let t = 6; _labTm = setInterval(() => { t--; const el = document.getElementById('labTm'); if (el) el.textContent = t; if (t <= 0) { clearInterval(_labTm); if (LAB.q === Q && !Q.ans) labAnswer(null); } }, 1000); }
@@ -10712,11 +10712,11 @@
             const L = String(text).split(/\r?\n/), H = L[0].split('\t').map(x => x.trim()), foot = k => { const m = String(text).match(new RegExp('^' + k + ':\\s*([\\d.,]+)', 'mi')); return m ? gtpNum(m[1]) : null; };
             const base = { ...id, pot: foot('pot'), stack: foot('stack'), call: foot('to call'), name: String(name) };
             if (H[0] === 'Hand') { if (!id.flop) return { err: 'flop absent du nom (…_on_flop_Ah7c2d)' };
-                const pI = H.indexOf('Percentage'), eI = H.indexOf('EV (total)'), wI = H.indexOf('Combos (total)'); if (pI < 0 || eI < 0) return { err: 'colonnes Percentage / EV absentes' };
-                const acts = []; for (let i = pI + 1; i < H.length && H[i]; i++) acts.push(H[i]); const n = acts.length, C = [], W = [], F = [], E = [];
-                L.slice(1).forEach(l => { const c = l.split('\t'); if (!/^[2-9TJQKA][cdhs][2-9TJQKA][cdhs]$/i.test(c[0] || '')) return; C.push(c[0]); W.push(Math.round(1000 * gtpNum(c[wI])) / 1000);
+                const pI = H.indexOf('Percentage'), eI = H.indexOf('EV (total)'), wI = H.indexOf('Combos (total)'), qI = H.indexOf('Equity'); if (pI < 0 || eI < 0) return { err: 'colonnes Percentage / EV absentes' };
+                const acts = []; for (let i = pI + 1; i < H.length && H[i]; i++) acts.push(H[i]); const n = acts.length, C = [], W = [], F = [], E = [], Q = [];
+                L.slice(1).forEach(l => { const c = l.split('\t'); if (!/^[2-9TJQKA][cdhs][2-9TJQKA][cdhs]$/i.test(c[0] || '')) return; C.push(c[0]); W.push(Math.round(1000 * gtpNum(c[wI])) / 1000); if (qI >= 0) Q.push(Math.round(gtpNum(c[qI]) * 10) / 1000);
                     for (let i = 0; i < n; i++) { F.push(Math.round(gtpNum(c[pI + 1 + i]) * 10) / 1000); E.push(Math.round(gtpNum(c[eI + 1 + i]) * 1000) / 1000); } });
-                if (!C.length) return { err: 'aucune main lue' }; return { rec: { ...base, type: 'hand', acts, C, W, F, E } }; }
+                if (!C.length) return { err: 'aucune main lue' }; return { rec: { ...base, type: 'hand', acts, C, W, F, E, ...(Q.length === C.length ? { Q } : {}) } }; }
             if (/^Tree$/i.test(H[0])) { const wI = H.findIndex(x => /^Weight$/i.test(x)), acts = H.slice(3, wI < 0 ? H.length : wI).filter(Boolean), fl = {};
                 L.slice(1).forEach(l => { const c = l.split('\t'), f = gtpFlopN(c[0]); if (!f || c[0].length > 8) return; fl[f.join('')] = { f: acts.map((_, i) => gtpNum(c[3 + i]) / 100), w: wI < 0 ? 1 : gtpNum(c[wI]), eq: gtpNum(c[1]), ev: gtpNum(c[2]) }; });
                 if (!Object.keys(fl).length) return { err: 'aucun flop lu' }; return { rec: { ...base, flop: null, type: 'agg', acts, fl } }; }
@@ -10875,6 +10875,673 @@
             return { o, best, eq: null, share: null, did, pot, eff: e.eff, noEv: !S.e, src: `🎯 Corrigé par ton solveur GTO+ (${R.depth} BB) · ${S.exact ? `flop exact solvé (${gtpFl(R.flop)}), EV de ta combinaison` : `flop solvé le plus proche (${gtpFl(R.flop)}), stratégie de ta catégorie de main : une action que le solveur joue souvent compte comme bonne`}.` };
         }
         { const _leG = labEval; labEval = function (d) { if (d.ev) return d.ev; let g = null; try { g = gtpDrill(d); } catch (x) { console.error('gtpDrill', x); } if (g) return d.ev = g; return _leG(d); }; }
+
+        // ===================== 94. PLAN DU JOUR ET GUIDE (« Demande au coach ») =====================
+        // L'outil calcule, l'IA aiguille : la demande est comprise par mots-clés, ou par l'IA déjà présente (Llama local, ou Claude dans claude.ai) qui choisit dans un menu fermé d'actions.
+        const GD = { open: false, view: 'plan', out: '', busy: false, hist: [] };
+        const GD_NODES = { 'BB|first': 'BB parle en premier', 'SB|x': 'BB checke → toi SB', 'BB|bet': 'SB mise → toi BB', 'SB|xr': 'BB check-raise → toi SB' };
+        const GD_ACTS = { check: 'Check', bet: 'Mise', call: 'Paie', fold: 'Couche', raise: 'Relance', allin: 'Tapis' };
+        const GD_TABS = () => Object.entries(NAV_TAB).map(([k, v]) => ({ k, l: String(v[0]).replace(/^\S+\s/, ''), d: v[1] }));
+        const gdGo = t => { try { showTab(t); } catch (e) { } };
+        const gdLab = seg => { LAB.seg = seg; LAB.q = null; gdGo('lab'); };
+        // ---- le plan du jour : tes priorités du moment, chacune avec son bouton ----
+        function gdPlan(hero) {
+            const P = [];
+            try { const D = labDaily(hero); if (D.list.length) P.push({ ic: '🔁', t: `File du jour : ${D.due.length} main${D.due.length > 1 ? 's' : ''} à revoir, ${D.fresh.length} nouvelle${D.fresh.length > 1 ? 's' : ''}`, d: 'Environ 5 minutes. Les mains ratées reviennent demain.', b: 'Lancer', a: { a: 'drill', g: 'daily' } }); } catch (e) { }
+            try { const L = lkLife(hero).filter(x => !(x.st.real && !x.st.back)); const x = L[0]; if (x) P.push({ ic: '🎯', t: `Leak préflop : ${x.label}, ${x.dir === 'loose' ? 'trop large' : 'trop serré'}`, d: `${Math.round(100 * (x.r30.n ? x.r30.p : x.tot.p))} % d'erreurs ${x.r30.n ? 'sur 30 jours' : 'au total'} · coût ${simF1(x.cost)} BB${x.st.back ? ' · il est revenu' : ''}.`, b: 'Travailler', a: { a: 'chantier', scen: x.scen, dir: x.dir } }); } catch (e) { }
+            try { if (Object.keys(GTP).length) { const J = gtpJudge(hero), G = {}; J.L.forEach(x => { const k = x.node + '|' + x.cat, g = G[k] || (G[k] = { x, n: 0, e: 0 }); g.n++; if (x.err) g.e++; });
+                const g = Object.values(G).filter(g => g.n >= 8).sort((a, b) => b.e - a.e)[0]; if (g && g.e >= 3) P.push({ ic: '🃏', t: `Postflop : ${GD_NODES[g.x.node] || g.x.node}, avec ${(TX_CATL[g.x.cat] || g.x.cat).toLowerCase()}`, d: `${g.e} écarts à ton solveur sur ${g.n} décisions (${Math.round(100 * g.e / g.n)} %).`, b: 'Voir les mains', a: { a: 'hands', node: g.x.node, cat: g.x.cat } }); } } catch (e) { }
+            try { if (!LAB.coach) P.push({ ic: '🧭', t: 'Préparer ta prochaine séance', d: 'Trois objectifs tirés de tes leaks, le bilan après la séance.', b: 'Préparer', a: { a: 'coach' } }); else P.push({ ic: '🧭', t: 'Séance en cours : vérifie tes 3 objectifs', d: 'Importe tes mains après la séance pour le bilan.', b: 'Voir', a: { a: 'tab', tab: 'evo' } }); } catch (e) { }
+            try { const T = tdSpots(hero).L.filter(g => g.miss > 0)[0]; if (T) P.push({ ic: '🗂', t: `Prochain spot à solver : ${tdTitle({ tree: T.tree, opp: T.opp, role: T.role, kind: T.kind, par: T.kind === 'xr' || T.kind === 'xrshove' ? { b: T.par, to: T.to } : T.par })} · ${T.d} BB`, d: `${T.miss} décisions de tes mains sans fichier.`, b: 'Ranges et arbre', a: { a: 'solve' } }); } catch (e) { }
+            return P;
+        }
+        // ---- le menu fermé des actions ----
+        function gdRun(A) {
+            const hero = playerSelect.value; if (!A || !A.a) return gdHelp();
+            if (A.a === 'plan') { GD.view = 'plan'; return gdRender(); }
+            if (A.a === 'recap') { RC.i = 0; RC.ai = ''; GD.view = 'rc'; return gdRender(); }
+            if (A.a === 'drill') { gdLab('train'); if (A.st && ['all', 'F', 'T', 'R'].includes(A.st)) LAB.st = A.st; setTimeout(() => { try { labStart(A.g || 'daily'); } catch (e) { } }, 120); return gdSay(`J'ouvre l'exercice <b>${esc((LAB_G[A.g || 'daily'] || {}).t || '')}</b>.`); }
+            if (A.a === 'lab') { gdLab(A.seg || 'train'); return gdSay(`J'ouvre le Postflop Lab, section <b>${esc({ train: 'Entraînement', leak: 'Fuites postflop', fs: 'Fiche solveur', tl: 'Tells de taille', tool: 'Outils', todo: 'Spots à solver', tree: 'Arbre de tes lignes', mx: 'Matrice & familles' }[A.seg] || '')}</b>.`); }
+            if (A.a === 'tab') { const T = GD_TABS().find(x => x.k === A.tab); if (!T) return gdHelp(); gdGo(A.tab); return gdSay(`J'ouvre <b>${esc(T.l)}</b> : ${esc(T.d || '')}`); }
+            if (A.a === 'chantier') { try { chStart(A.scen, A.dir); } catch (e) { } gdGo('leaks'); return gdSay('Chantier lancé sur ce leak : tes prochaines mains de ce spot seront suivies, et la révision s\'ouvre dans Analyse leaks.'); }
+            if (A.a === 'coach') { gdGo('evo'); setTimeout(() => { try { if (!LAB.coach) labCoachPrep(); } catch (e) { } }, 300); return gdSay('Ta séance est préparée : tes 3 objectifs sont en haut de Progression.'); }
+            if (A.a === 'solve') { const T = tdSpots(hero).L.filter(g => g.miss > 0).slice(0, 3); if (!T.length) return gdSay('Tous tes spots fréquents ont un fichier.'); gdLab('todo');
+                return gdSay(`Les 3 prochains spots à solver (le détail complet est ouvert dans Spots à solver) :<pre class="text-[11px] whitespace-pre-wrap mt-2 text-slate-300">${esc(T.map((g, i) => (i + 1) + '. ' + tdText(g)).join('\n\n'))}</pre>`); }
+            if (A.a === 'mt') { const n = +A.stack; MT.fmt = A.fmt === 'HU' ? 'HU' : '3'; if (n >= 1 && n <= 40) MT.st = [n, n, n]; MT.view = 'pre'; MT.sit = null; gdGo('mtab'); setTimeout(() => { try { renderMt(); } catch (e) { } }, 80);
+                return gdSay(`Mode table réglé : ${MT.fmt === 'HU' ? 'heads-up' : '3 joueurs'}${n ? `, ${n} BB pour tout le monde` : ''}. Touche la ligne préflop, puis « 🃏 Flop ».`); }
+            if (A.a === 'leakpf') { const L = (() => { try { return lkLife(hero); } catch (e) { return []; } })().slice(0, 4); gdGo('leaks'); if (!L.length) return gdSay('Pas de leak préflop net pour l\'instant.');
+                return gdSay(`Tes leaks préflop les plus coûteux :<div class="mt-2 space-y-1.5">${L.map(x => `<div class="flex items-center gap-2"><div class="flex-1 text-sm">${esc(x.label)} · ${x.dir === 'loose' ? 'trop large' : 'trop serré'} <span class="text-xs text-slate-400">${Math.round(100 * x.tot.p)} % · ${simF1(x.cost)} BB</span></div><button data-gd='${esc(JSON.stringify({ a: 'chantier', scen: x.scen, dir: x.dir }))}' class="min-h-[40px] px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold">Travailler</button></div>`).join('')}</div>`); }
+            if (A.a === 'hands') return gdHands(hero, A);
+            return gdHelp();
+        }
+        // mains HU limp/check comparées à ton solveur, filtrées
+        function gdHands(hero, A) {
+            if (!Object.keys(GTP).length) return gdSay('Il me faut tes fichiers GTO+ pour comparer tes mains au solveur (Postflop Lab → Spots à solver → Importer).');
+            const map = { check: 'x', bet: 'b', call: 'c', fold: 'f', raise: 'r' };
+            let L = gtpJudge(hero).L; if (A.node && GD_NODES[A.node]) L = L.filter(x => x.node === A.node); if (A.cat && TX_CATL[A.cat]) L = L.filter(x => x.cat === A.cat);
+            if (A.act && GD_ACTS[A.act]) L = L.filter(x => { const a = x.R.acts[x.j], lab = gtpLab(a, x.R); return A.act === 'allin' ? lab === 'Tapis' : gtpGrp(a) === map[A.act] && lab !== 'Tapis'; });
+            if (A.err) L = L.filter(x => x.err);
+            const n = L.length, e = L.filter(x => x.err).length, desc = [A.node && GD_NODES[A.node], A.cat && TX_CATL[A.cat] && 'avec ' + TX_CATL[A.cat].toLowerCase(), A.act && GD_ACTS[A.act] && 'où tu ' + { check: 'checkes', bet: 'mises', call: 'paies', fold: 'couches', raise: 'relances', allin: 'pars à tapis' }[A.act], A.err && 'en écart avec le solveur'].filter(Boolean).join(', ');
+            if (!n) return gdSay(`Aucune main trouvée${desc ? ' : ' + esc(desc) : ''}.`);
+            const S = L.slice().sort((a, b) => (b.err - a.err) || ((b.cost || 0) - (a.cost || 0))).slice(0, 25);
+            return gdSay(`<b>${n}</b> décision${n > 1 ? 's' : ''}${desc ? ' · ' + esc(desc) : ''} · <b class="${e / n > .2 ? 'text-rose-300' : 'text-emerald-300'}">${e}</b> en écart avec ton solveur.
+                <div class="mt-2 max-h-[50vh] overflow-auto custom-scrollbar border border-white/10 rounded-lg">${S.map(x => `<div class="flex items-center gap-2 px-2 py-1.5 border-b border-white/5 text-[13px]"><button data-gtpo="${esc(x.h.id)}" class="flex-1 text-left min-h-[40px]">${x.hc.split(' ').map(labMini).join(' ')} <span class="text-slate-500">sur</span> ${x.board.map(labMini).join(' ')}<div class="text-[11px] text-slate-400">tu joues <b class="${x.err ? 'text-rose-300' : 'text-slate-200'}">${gtpLab(x.R.acts[x.j], x.R)}</b> · solveur <b class="text-emerald-300">${gtpLab(x.R.acts[x.best], x.R)}</b> ${labPc(x.S.f[x.best])}${x.cost != null ? ` · ${simF1(x.cost)} BB` : ''}</div></button><button data-lab="srsadd" data-k="${esc(x.h.id + '|F')}" class="min-h-[40px] px-2 rounded-lg bg-slate-800 text-[11px] font-bold text-slate-200">${LAB.srs[x.h.id + '|F'] ? '✓ File' : '+ File'}</button></div>`).join('')}</div>
+                <div class="text-[11px] text-slate-500 mt-1">Touche une main pour la revoir. « + File » l'ajoute à ta File du jour.</div>`);
+        }
+        // ---- comprendre la demande : mots-clés d'abord, IA ensuite ----
+        const gdNorm = s => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        function gdRules(q) {
+            const s = gdNorm(q), has = r => r.test(s);
+            const node = has(/\bbb\b.*(face|mise|bet|1 ?bb)|face a (la |une )?mise/) && !has(/\bsb\b.*face/) ? 'BB|bet' : has(/check.?raise|checkraise/) ? 'SB|xr' : has(/\bsb\b.*(apres|check)|(apres|quand).*check.*\bsb\b|en position/) ? 'SB|x' : has(/\bbb\b.*(premier|parle|donk|lead)/) ? 'BB|first' : null;
+            const cat = has(/tirage|draw|couleur|quinte/) ? 'draw' : has(/top ?paire|toppair/) ? 'top' : has(/overpair|surpaire/) ? 'ovp' : has(/deux paires|brelan|fort|set\b/) ? 'fort' : has(/paire (faible|moyenne|basse)|petite paire|middle/) ? 'mid' : has(/rien|air|bluff|hauteur/) ? 'air' : null;
+            const act = has(/tapis|all.?in|shove/) ? 'allin' : has(/couch|fold/) ? 'fold' : has(/pa(ie|ye)|call/) ? 'call' : has(/relan|raise/) ? 'raise' : has(/\b(je|tu|j')\s*(mise|bet)/) ? 'bet' : has(/\b(je|tu)\s*check/) ? 'check' : null;
+            if (has(/\bmains?\b|montre|affiche|liste|erreur|ecart/) && (node || cat || has(/limp|solveur|gto/))) return { a: 'hands', node, cat, act: node === 'BB|bet' && act === 'bet' ? null : act, err: has(/erreur|ecart|mal joue|faute/) };
+            if (has(/plan|aujourd|quoi (faire|travailler)|priorit|par ou commencer/)) return { a: 'plan' };
+            if (has(/file du jour|revis|revoir mes mains/)) return { a: 'drill', g: 'daily' };
+            if (has(/survie/)) return { a: 'drill', g: 'sv' };
+            if (has(/miser ou checker|mise ou check/)) return { a: 'drill', g: 'bc' };
+            if (has(/defend|c.?bet/)) return { a: 'drill', g: 'mdf' };
+            if (has(/entrain|exercice|drill/)) return { a: 'lab', seg: 'train' };
+            if (has(/matrice|fiche (de |par )?famille|famille de flop|type de main|construi(s|re) (ma|ta) range|range builder|flopzilla/)) return { a: 'lab', seg: 'mx' };
+            if (has(/recap|bilan de (ma |la )?(seance|session)|ma (derniere )?(seance|session)|resume de ma/)) return { a: 'recap' };
+            if (has(/arbre de (mes |tes )?lignes|mes lignes|ou (je )?perds|ce qui (me )?coute|ligne.*(flop|turn|river)/)) return { a: 'lab', seg: 'tree' };
+            if (has(/(quel|prochain).*(spot|solve)|a solver|solver ensuite|range.*(solve|gto)|arbre/)) return { a: 'solve' };
+            if (has(/mode table|\btable\b/) || (has(/\d+ ?bb/) && has(/hu|heads|3 joueurs|3-?max|2 joueurs/))) { const m = s.match(/(\d+(?:[.,]\d)?) ?bb/); return { a: 'mt', fmt: has(/hu|heads|2 joueurs/) ? 'HU' : '3', stack: m ? +m[1].replace(',', '.') : null }; }
+            if (has(/seance|session/)) return { a: 'coach' };
+            if (has(/leak|fuite/) && !has(/preflop/) && has(/postflop|\bflop/)) return { a: 'lab', seg: 'leak' };
+            if (has(/leak|fuite/)) return { a: 'leakpf' };
+            if (has(/fiche solveur|node.?lock|frequence.*field/)) return { a: 'lab', seg: 'fs' };
+            if (has(/tells?/)) return { a: 'lab', seg: 'tl' };
+            if (has(/planificateur|geometri|spr|taille de mise/)) return { a: 'lab', seg: 'tool' };
+            if (has(/import.*(gto|solve|fichier)|mes solves|spots a solver/)) return { a: 'lab', seg: 'todo' };
+            if (has(/textur/)) return { a: 'tab', tab: 'tx' };
+            if (has(/progress|evolution|courbe/)) return { a: 'tab', tab: 'evo' };
+            if (has(/adversaire|field|profil|tag/)) return { a: 'tab', tab: 'field' };
+            if (has(/push.?fold|charte|preflop/)) return { a: 'tab', tab: 'pf' };
+            if (has(/resultat|gains|roi/)) return { a: 'tab', tab: 'spins' };
+            if (has(/main|replay/)) return { a: 'tab', tab: 'hands' };
+            return null;
+        }
+        function gdPrompt(q) {
+            const tabs = GD_TABS().map(t => `${t.k} = ${t.l}`).join(' ; ');
+            return `Tu es le guide de l'application Spin Tracker. Tu NE réponds PAS au joueur : tu choisis UNE action dans ce menu et tu réponds UNIQUEMENT par un objet JSON sur une ligne, sans texte autour.
+Actions possibles :
+{"a":"recap"} : récap / bilan de sa dernière séance
+{"a":"plan"} : plan du jour, quoi travailler
+{"a":"drill","g":"daily|bc|mdf|sv"} : exercice (daily = file du jour, bc = miser ou checker, mdf = défendre le c-bet, sv = survie)
+{"a":"hands","node":"BB|first|SB|x|BB|bet|SB|xr","cat":"fort|ovp|top|mid|draw|air","act":"check|bet|call|fold|raise|allin","err":true} : montrer ses mains de pot limpé heads-up comparées au solveur (node : BB|first = BB parle en premier, SB|x = SB après le check du BB, BB|bet = BB face à une mise, SB|xr = SB face au check-raise ; cat : fort = deux paires et plus, ovp = overpair, top = top paire, mid = paire moyenne, draw = tirage, air = rien ; champs facultatifs)
+{"a":"mt","fmt":"HU|3","stack":12} : régler le Mode table
+{"a":"solve"} : prochain spot à solver, ranges et arbre
+{"a":"leakpf"} : leaks préflop
+{"a":"coach"} : préparer la séance
+{"a":"lab","seg":"train|leak|fs|tl|tool|todo|tree|mx"} : Postflop Lab (mx = matrice 13x13 du solveur, stratégie par type de main et par famille de flop, fiches par famille, exercices construis ta range ; leak = fuites postflop, fs = fiche solveur, tl = tells de taille, tool = outils, todo = spots à solver, tree = arbre de ses lignes flop-turn-river et ce qui coûte le plus)
+{"a":"tab","tab":"..."} : ouvrir un onglet parmi : ${tabs}
+{"a":"none"} : aucune action ne correspond
+Demande du joueur : « ${q} »
+JSON :`;
+        }
+        function gdParseAI(t) { const m = String(t || '').match(/\{[\s\S]*?\}(?=[^}]*$)|\{[\s\S]*\}/); if (!m) return null; let o = null; try { o = JSON.parse(m[0]); } catch (e) { try { o = JSON.parse(m[0].replace(/'/g, '"')); } catch (x) { return null; } }
+            if (!o || typeof o.a !== 'string') return null; const ok = ['recap', 'plan', 'drill', 'hands', 'mt', 'solve', 'leakpf', 'coach', 'lab', 'tab'];
+            if (!ok.includes(o.a)) return null; if (o.a === 'tab' && !NAV_TAB[o.tab]) return null; if (o.a === 'drill' && !LAB_G[o.g]) o.g = 'daily'; if (o.a === 'lab' && !['train', 'leak', 'fs', 'tl', 'tool', 'todo', 'tree', 'mx'].includes(o.seg)) o.seg = 'train';
+            if (o.node && !GD_NODES[o.node]) delete o.node; if (o.cat && !TX_CATL[o.cat]) delete o.cat; if (o.act && !GD_ACTS[o.act]) delete o.act; return o; }
+        const gdAI = () => !!(AIX.claude || AIX.local.st === 'ready');
+        async function gdAsk(q) {
+            q = String(q || '').trim(); if (!q || GD.busy) return; GD.view = 'ask'; GD.hist.unshift(q); GD.hist = GD.hist.slice(0, 8);
+            const R = gdRules(q); if (R) { gdRun(R); return; }
+            if (!gdAI()) { gdSay(`Je n'ai pas reconnu ta demande par mots-clés, et l'IA n'est pas chargée. <div class="mt-2">${aiStatusHTML()}</div><div class="text-[11px] text-slate-400 mt-1">Charge l'IA locale (une fois, puis elle reste sur cet appareil), ou choisis une suggestion ci-dessous.</div>`); return; }
+            GD.busy = true; gdSay('<span class="text-slate-400">Je cherche où t\'emmener…</span>');
+            let o = null; try { const t = await aiRun(gdPrompt(q), { max: 80 }); o = gdParseAI(t); } catch (e) { } GD.busy = false;
+            if (o) gdRun(o); else gdHelp('Je n\'ai pas compris ta demande.');
+        }
+        function gdHelp(pre) { GD.view = 'ask'; gdSay(`${pre ? esc(pre) + ' ' : ''}Voici ce que je sais faire :<div class="flex flex-wrap gap-1.5 mt-2">${GD_SUG.map(s => `<button data-gdq="${esc(s)}" class="min-h-[40px] px-3 rounded-lg bg-slate-800 text-xs text-slate-200 text-left">${esc(s)}</button>`).join('')}</div>`); }
+        const GD_SUG = ['Fais-moi le récap de ma dernière séance', 'Où je perds dans mes lignes ?', 'Que dois-je travailler aujourd\'hui ?', 'Montre-moi mes mains au BB face à une mise où je couche un tirage', 'Mes erreurs au SB quand le BB checke', 'Lance la file du jour', 'Lance Survie', 'Quel spot solver ensuite ?', 'Mes leaks préflop', 'Mode table HU 12 bb', 'Prépare ma séance', 'Ouvre la fiche solveur'];
+        function gdSay(html) { GD.out = html; GD.view = 'ask'; gdRender(); }
+        // ---- l'interface : un bouton toujours visible, un panneau à droite ----
+        function gdRender() {
+            let P = document.getElementById('gdPanel'); if (!P) return; P.classList.toggle('hidden', !GD.open); if (!GD.open) return; const hero = playerSelect.value;
+            const tab = (v, l) => `<button data-gdv="${v}" class="flex-1 min-h-[44px] rounded-xl text-sm font-bold ${GD.view === v ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`;
+            let body = '';
+            if (!hero || !allParsedHands.length) body = '<div class="text-sm text-slate-400">Importe tes HH et choisis ton pseudo.</div>';
+            else if (GD.view === 'plan') { const L = gdPlan(hero); body = `<div class="text-xs text-slate-400 mb-2">Tes priorités du moment, dans l'ordre. Un bouton t'emmène au bon endroit.</div><div class="space-y-2">${L.map((p, i) => `<div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="flex items-start gap-2"><span class="text-lg">${p.ic}</span><div class="flex-1"><div class="font-bold text-sm">${i + 1}. ${esc(p.t)}</div><div class="text-xs text-slate-400 mt-0.5">${esc(p.d)}</div></div></div><button data-gd='${esc(JSON.stringify(p.a))}' class="mt-2 w-full min-h-[44px] rounded-xl bg-indigo-600 text-white text-sm font-bold">${esc(p.b)}</button></div>`).join('') || '<div class="text-sm text-slate-400">Rien d\'urgent : fais ta File du jour ou une séance.</div>'}</div>`; }
+            else if (GD.view === 'rc') body = rcHtml(hero);
+            else body = `<form id="gdForm" class="flex gap-2"><input id="gdIn" class="sel flex-1 min-h-[48px] text-sm" placeholder="Ex. : mes mains au BB face à une mise avec un tirage" autocomplete="off"><button class="min-h-[48px] px-4 rounded-xl bg-indigo-600 text-white font-bold">→</button></form>
+                <div class="text-[11px] text-slate-500 mt-1">${gdAI() ? `IA prête (${AIX.claude ? 'Claude' : 'locale'}) : elle comprend les demandes libres.` : 'Compréhension par mots-clés. Pour les demandes libres, charge l\'IA locale :'}</div>${gdAI() ? '' : `<div class="mt-1">${aiStatusHTML()}</div>`}
+                <div class="mt-3 text-sm text-slate-200">${GD.out || ''}</div>${GD.out ? '' : `<div class="flex flex-wrap gap-1.5 mt-2">${GD_SUG.map(s => `<button data-gdq="${esc(s)}" class="min-h-[40px] px-3 rounded-lg bg-slate-800 text-xs text-slate-200 text-left">${esc(s)}</button>`).join('')}</div>`}`;
+            P.innerHTML = `<div class="flex items-center justify-between mb-3"><div class="font-black text-lg">🧭 Coach</div><button data-gdx="1" class="w-11 h-11 rounded-xl bg-slate-800 text-slate-300 text-lg">✕</button></div><div class="flex gap-2 mb-3">${tab('rc', '🧾 Récap')}${tab('plan', '📅 Plan')}${tab('ask', '💬 Demande')}</div>${body}`;
+            if (GD.view === 'ask') { const i = document.getElementById('gdIn'); if (i) setTimeout(() => i.focus(), 30); }
+        }
+        {
+            const b = document.createElement('button'); b.id = 'gdBtn'; b.className = 'fixed z-[60] bottom-4 left-4 min-h-[52px] px-4 rounded-2xl bg-indigo-600 text-white font-black shadow-xl shadow-black/40'; b.textContent = '🧭 Coach'; document.body.appendChild(b);
+            const p = document.createElement('div'); p.id = 'gdPanel'; p.className = 'hidden fixed z-[61] top-0 right-0 h-full w-full sm:w-[440px] bg-slate-950/97 border-l border-white/10 p-4 overflow-auto custom-scrollbar shadow-2xl'; p.style.background = 'rgb(2,6,23)'; p.style.boxShadow = '-12px 0 40px rgba(0,0,0,.6)'; document.body.appendChild(p);
+            b.addEventListener('click', () => { GD.open = !GD.open; if (GD.open && !GD.out) GD.view = 'plan'; gdRender(); });
+            document.addEventListener('click', e => {
+                if (e.target.closest('[data-gdx]')) { GD.open = false; return gdRender(); }
+                const v = e.target.closest('#gdPanel [data-gdv]'); if (v) { GD.view = v.dataset.gdv; if (GD.view === 'ask') GD.out = ''; return gdRender(); }
+                const q = e.target.closest('#gdPanel [data-gdq]'); if (q) return gdAsk(q.dataset.gdq);
+                const a = e.target.closest('#gdPanel [data-gd]'); if (a) { let o = null; try { o = JSON.parse(a.dataset.gd); } catch (x) { } if (o) { gdRun(o); if (o.a !== 'hands' && o.a !== 'solve' && o.a !== 'leakpf' && window.innerWidth < 900) { GD.open = false; gdRender(); } } return; }
+                const r = e.target.closest('#gdPanel [data-gtpo]'); if (r) { const h = allParsedHands.find(x => x.id === r.dataset.gtpo); if (h) startReplay(h, null, null, { ctx: 'Pot limpé HU · flop' }); return; }
+                const s = e.target.closest('#gdPanel [data-lab="srsadd"]'); if (s) { const k = s.dataset.k; if (!LAB.srs[k]) { LAB.srs[k] = { b: 0, n: 0, ok: 0, due: Date.now() - 1 }; labSave(); } s.textContent = '✓ File'; return; }
+            });
+            document.addEventListener('submit', e => { if (e.target.id !== 'gdForm') return; e.preventDefault(); const i = document.getElementById('gdIn'); gdAsk(i ? i.value : ''); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape' && GD.open) { GD.open = false; gdRender(); } });
+        }
+
+        // ===================== 95. ARBRE DE TES LIGNES (flop → turn → river) =====================
+        // Chaque spot à 2 joueurs au flop : à chaque nœud, tes fréquences contre une référence (field, un profil, ou ton solveur au flop), ton résultat réel depuis ce nœud, et ce qui coûte / rapporte le plus.
+        let _trNoSol = false;
+        const TRL = { spot: null, role: null, dep: 'all', ref: 'f', fam: 'all', drill: [], path: [], ix: null, busy: false, pct: 0 };
+        const TRL_TOK = { x: 'Check', c: 'Paie', f: 'Couche', b1: 'Mise petite', b2: 'Mise moyenne', b3: 'Grosse mise', b4: 'Tapis', r: 'Relance', ra: 'Relance tapis' };
+        const TRL_TOKS = { x: 'check', c: 'paie', f: 'couche', b1: 'mise petit', b2: 'mise moyen', b3: 'mise gros', b4: 'tapis', r: 'relance', ra: 'relance tapis' };
+        const TRL_ST = { F: 'Flop', T: 'Turn', R: 'River' };
+        const TRL_DEP = [['all', 'Tous stacks'], ['s', '≤ 8 BB'], ['m', '8–12 BB'], ['l', '12 BB et +']];
+        const trDepOf = e => e <= 8 ? 's' : e <= 12 ? 'm' : 'l';
+        const trTok = e => e.k === 'checks' ? 'x' : e.k === 'calls' ? 'c' : e.k === 'folds' ? 'f' : e.k === 'bets' ? 'b' + (e.sz || 2) : e.all ? 'ra' : 'r';
+        function trlSpotOf(L) { const [o, i] = L.ord, P = L.posOf, a = L.agg ? P(L.agg) : null, fm = L.n === 2 ? 'HU' : '3-max';
+            const lab = L.potT === 'L' ? (L.n === 2 ? 'HU · SB limpe, BB checke' : `3-max · pot limpé ${P(o)} / ${P(i)}`) : L.n === 2 ? (a === 'SB' ? 'HU · SB relance, BB paie' : 'HU · SB limpe, BB relance, SB paie') : `3-max · ${a} relance, ${a === P(o) ? P(i) : P(o)} paie`;
+            return { k: [fm, L.potT, a || '-', P(o), P(i)].join('|'), lab, O: P(o), I: P(i) }; }
+        const _trCev = new Map();
+        const trRes = (h, p) => { const k = h.id + '|' + p; if (_trCev.has(k)) return _trCev.get(k); let v = 0; try { v = revCEV(h, p).c; } catch (e) { } _trCev.set(k, v); return v; };
+        // index : une ligne par main à 2 joueurs au flop
+        async function trBuild(hero) {
+            const key = hero + '|' + allParsedHands.length; if (TRL.ix && TRL.ix.key === key) return TRL.ix; if (TRL.busy) return null; TRL.busy = true; const S = {}, H = [];
+            let tg = {}; try { tg = plNames(hero).tg; } catch (e) { }
+            const A = allParsedHands; for (let i = 0; i < A.length; i++) { const h = A[i]; if (i % 400 === 0) { TRL.pct = i / A.length; trProg(); await nextFrame(); }
+                const L = labParse(h); if (!L || L.ord.length !== 2 || !L.E.length) continue; const sp = trlSpotOf(L), s = S[sp.k] || (S[sp.k] = { ...sp, n: 0, nh: { O: 0, I: 0 } }); s.n++;
+                const toks = L.E.map(e => ({ st: e.st, t: trTok(e), r: e.p === L.ord[0] ? 'O' : 'I', e })), eff = Math.min(...L.ord.map(p => h.stacks[p])) / L.bb, hr = L.ord[0] === hero ? 'O' : L.ord[1] === hero ? 'I' : null;
+                if (hr) s.nh[hr]++; H.push({ h, L, sp: sp.k, toks, dep: trDepOf(eff), eff, hr, pl: { O: L.ord[0], I: L.ord[1] } }); }
+            TRL.busy = false; TRL.ix = { key, S, H, tg }; return TRL.ix;
+        }
+        // arbre pour un spot, un rôle (O/I) et une référence
+        function trTree(ix, hero, spot, role, dep, ref, fam = 'all') {
+            const mk = () => ({ n: 0, c: {}, ev: {}, ev2: {}, sum: 0, sum2: 0, sd: 0, won: 0, fr: {}, cf: {} }), N = new Map(), node = k => N.get(k) || (N.set(k, { k, actor: null, st: null, me: mk(), rf: mk(), sol: { n: 0, c: {}, cf: {} }, ids: [], dj: [] }), N.get(k));
+            const tg = ix.tg, inRef = (x, p) => ref === 'f' ? true : (tg[p] || []).includes(ref);
+            let nMe = 0, nRf = 0;
+            ix.H.forEach(x => { if (x.sp !== spot || (dep !== 'all' && x.dep !== dep) || (fam !== 'all' && x.L.fam !== fam)) return; const fm = x.L.fam || '?'; const p = x.pl[role], mine = x.hr === role; if (!mine && (p === hero || !inRef(x, p))) return;
+                const D = mine ? 'me' : 'rf'; if (mine) nMe++; else nRf++; const res = trRes(x.h, p), won = res > 0 ? 1 : 0;
+                let path = ''; x.toks.forEach((o, j) => { const n = node(path); n.actor = o.r; n.st = o.st; const d = n[D]; d.n++; d.c[o.t] = (d.c[o.t] || 0) + 1; const cf = d.cf[fm] || (d.cf[fm] = { n: 0, c: {} }); cf.n++; cf.c[o.t] = (cf.c[o.t] || 0) + 1; if (o.t[0] === 'b') d.fr[o.t] = (d.fr[o.t] || 0) + (o.e.frac || 0); if (mine) { n.ids.push(x.h.id); if (o.r === role) n.dj.push(x.h.id + '|' + j); } d.ev[o.t] = (d.ev[o.t] || 0) + res; d.ev2[o.t] = (d.ev2[o.t] || 0) + res * res; d.sum += res; d.sum2 += res * res; d.won += won;
+                    if (!_trNoSol && mine && o.r === role && o.st === 'F' && x.L.potT === 'L' && x.L.n === 2 && typeof gtpPick === 'function' && Object.keys(GTP).length) { try { const sol = trSolver(x, o, j); if (sol) { n.sol.n++; const sf = n.sol.cf[fm] || (n.sol.cf[fm] = { n: 0, c: {} }); sf.n++; Object.entries(sol).forEach(([t, f]) => { n.sol.c[t] = (n.sol.c[t] || 0) + f; sf.c[t] = (sf.c[t] || 0) + f; }); } } catch (e) { } }
+                    path += (path ? '/' : '') + o.st + '.' + o.t; });
+                const end = node(path); end.end = true; if (mine) end.ids.push(x.h.id); if (!end.st) { const d = end[D]; d.n++; d.sum += res; d.sum2 += res * res; d.won += won; } });
+            return { N, nMe, nRf };
+        }
+        // stratégie de ton solveur pour ta main à ce nœud du flop (pots limpés HU)
+        function trSolver(x, o, j) {
+            const h = x.h, L = x.L, hero = playerSelect.value; if (!(h.hole && h.hole[0] === hero)) return null; const prev = x.toks.slice(0, j).filter(t => t.st === 'F').map(t => t.t).join('/'), role = L.posOf(hero);
+            let kind, par = 0; if (prev === '' && role === 'BB') kind = 'first'; else if (prev === 'x' && role === 'SB') kind = 'x'; else if (/^x\/b\d$/.test(prev) && role === 'BB') { kind = 'bet'; par = x.toks[j - 1].e.amt; } else if (/^x\/b\d\/r$/.test(prev) && role === 'SB') { kind = 'xr'; par = { b: x.toks[j - 2].e.amt, to: x.toks[j - 1].e.amt }; } else return null;
+            const board = (h.board || '').split(' ').slice(0, 3), P = gtpPick('HULIMP', role, kind, par, x.eff, board); if (!P || !P.R) return null; const S = gtpCombo(P, h.hole[1], board); if (!S) return null;
+            const R = P.R, out = {}; R.acts.forEach((a, i) => { const g = gtpGrp(a), v = gtpNum((a.match(/[\d.,]+/) || [0])[0]), all = R.stack != null && v >= R.stack - 1e-6; const t = g === 'x' ? 'x' : g === 'f' ? 'f' : g === 'c' ? 'c' : g === 'r' ? (all ? 'ra' : 'r') : 'b' + txSzc(v, R.pot || 2, all); out[t] = (out[t] || 0) + S.f[i]; }); return out;
+        }
+        const trPos = (sp, r) => r === 'O' ? sp.O : sp.I;
+        const trM = (d, t) => d.c[t] ? d.ev[t] / d.c[t] : null, trSE = (d, t) => { const n = d.c[t] || 0; if (n < 2) return null; const m = d.ev[t] / n; return Math.sqrt(Math.max(0, d.ev2[t] / n - m * m) / n); };
+        function trRefOf(n, refMode) { if (refMode === 'sol' && n.sol.n >= 3) { const t = n.sol.n; return { n: t, p: k => (n.sol.c[k] || 0) / t, lab: 'ton solveur', sol: true }; } const d = n.rf; return { n: d.n, p: k => d.n ? (d.c[k] || 0) / d.n : 0, lab: null, sol: false }; }
+        // ce qui coûte / rapporte : écart de résultat à chaque nœud où tu décides, ramené à 100 mains du spot
+        function trCosts(T, role) { const out = [];
+            T.N.forEach(n => { if (n.actor !== role || n.me.n < 20 || n.rf.n < 20) return; const em = n.me.sum / n.me.n, er = n.rf.sum / n.rf.n, sm = Math.sqrt(Math.max(0, n.me.sum2 / n.me.n - em * em) / n.me.n), d = (em - er) * n.me.n / Math.max(1, T.nMe) * 100, mg = 1.96 * sm * n.me.n / Math.max(1, T.nMe) * 100;
+                out.push({ n, d, mg, em, er }); }); return out; }
+        let _trCtx = null; const trPathTxt = k => { if (!k) return 'Début du flop'; const c = _trCtx, out = {}; let pre = ''; k.split('/').forEach(seg => { const [st, t] = seg.split('.'), n = c && c.N.get(pre), who = !n ? '' : n.actor === c.role ? 'toi' : trPos(c.sp, n.actor); (out[st] = out[st] || []).push(`${who} ${TRL_TOKS[t]}`.trim()); pre += (pre ? '/' : '') + seg; }); return Object.entries(out).map(([st, L]) => `${TRL_ST[st]} : ${L.join(', ')}`).join(' · '); };
+        // ---- rendu ----
+        function trProg() { const el = document.getElementById('trProg'); if (el) el.textContent = `Lecture de tes mains… ${Math.round(100 * TRL.pct)} %`; }
+        function labTreeHtml(hero) {
+            if (!TRL.ix || TRL.ix.key !== hero + '|' + allParsedHands.length) { trBuild(hero).then(ix => { if (ix && LAB.seg === 'tree') labRender(); }); return `<div id="trProg" class="text-sm text-slate-400 p-4">Lecture de tes mains… ${Math.round(100 * TRL.pct)} %</div>`; }
+            const ix = TRL.ix, spots = Object.values(ix.S).filter(s => s.nh.O + s.nh.I >= 30).sort((a, b) => (b.nh.O + b.nh.I) - (a.nh.O + a.nh.I));
+            if (!spots.length) return '<div class="text-sm text-slate-400">Pas assez de mains à 2 joueurs au flop.</div>';
+            if (!TRL.spot || !ix.S[TRL.spot] || !spots.includes(ix.S[TRL.spot])) { TRL.spot = spots[0].k; TRL.role = null; TRL.path = []; }
+            const sp = ix.S[TRL.spot]; if (!TRL.role || sp.nh[TRL.role] < 15) TRL.role = sp.nh.O >= sp.nh.I ? 'O' : 'I';
+            const hasSol = Object.keys(GTP).length && sp.k.startsWith('HU|L');
+            let tags = []; try { const c = {}; Object.values(ix.tg).forEach(a => a.forEach(t => c[t] = (c[t] || 0) + 1)); tags = Object.keys(c).sort((a, b) => c[b] - c[a]).slice(0, 8); } catch (e) { }
+            if (TRL.ref === 'sol' && !hasSol) TRL.ref = 'f'; if (TRL.ref !== 'f' && TRL.ref !== 'sol' && !tags.includes(TRL.ref)) TRL.ref = 'f';
+            const famC = (() => { const c = {}; ix.H.forEach(x => { if (x.sp === TRL.spot && x.hr === TRL.role && (TRL.dep === 'all' || x.dep === TRL.dep) && x.L.fam) c[x.L.fam] = (c[x.L.fam] || 0) + 1; }); return TXFAM.map(f => [f.k, c[f.k] || 0]).filter(x => x[1]); })();
+            if (TRL.fam !== 'all' && !famC.some(x => x[0] === TRL.fam)) TRL.fam = 'all';
+            const T = trTree(ix, hero, TRL.spot, TRL.role, TRL.dep, TRL.ref === 'sol' ? 'f' : TRL.ref, TRL.fam), N = T.N, role = TRL.role, opp = role === 'O' ? 'I' : 'O'; _trCtx = { N, role, sp };
+            // le chemin doit exister
+            const valid = []; for (const t of TRL.path) { const k = valid.join('/'), n = N.get(k); if (!n || !(n.me.c[t.split('.')[1]] || n.rf.c[t.split('.')[1]])) break; valid.push(t); } TRL.path = valid;
+            const chip = (a, v, l, on, extra = '') => `<button data-tr="${a}" data-v="${esc(v)}" class="shrink-0 min-h-[44px] px-3 rounded-xl text-xs font-bold ${on ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'} ${extra}">${l}</button>`;
+            const head = `<div class="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">${spots.slice(0, 10).map(s => chip('spot', s.k, `${esc(s.lab)} <span class="opacity-60 font-normal">${s.nh.O + s.nh.I}</span>`, s.k === TRL.spot)).join('')}</div>
+                <div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="text-[10px] uppercase text-slate-400 font-bold">Toi</span>${['O', 'I'].filter(r => sp.nh[r] >= 15).map(r => chip('role', r, `${trPos(sp, r)} · ${r === 'O' ? 'hors position' : 'en position'} <span class="opacity-60 font-normal">${sp.nh[r]}</span>`, r === role)).join('')}
+                <span class="text-[10px] uppercase text-slate-400 font-bold ml-2">Stacks</span>${TRL_DEP.map(([v, l]) => chip('dep', v, l, v === TRL.dep)).join('')}</div>
+                <div class="flex gap-1.5 mt-2 overflow-x-auto pb-1 custom-scrollbar items-center"><span class="shrink-0 text-[10px] uppercase text-slate-400 font-bold">Flop</span>${chip('fam', 'all', 'Tous', TRL.fam === 'all')}${famC.map(([k, n]) => chip('fam', k, `${esc(TXFK[k].l)} <span class="opacity-60 font-normal">${n}</span>`, TRL.fam === k)).join('')}</div>
+                <div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="text-[10px] uppercase text-slate-400 font-bold">Comparé à</span>${chip('ref', 'f', 'Field', TRL.ref === 'f')}${hasSol ? chip('ref', 'sol', '🎯 Ton solveur (flop)', TRL.ref === 'sol') : ''}${tags.map(t => chip('ref', t, esc(t), TRL.ref === t)).join('')}
+                <span class="text-xs text-slate-400 ml-1">${T.nMe} de tes mains · ${T.nRf} mains de référence</span></div>`;
+            // colonnes : un nœud par étape du chemin
+            const col = (k, sel) => { const n = N.get(k); if (!n || !n.st) return ''; const me = n.actor === role, R = trRefOf(n, TRL.ref), d = n.me, toks = [...new Set([...Object.keys(d.c), ...Object.keys(n.rf.c), ...(R.sol ? Object.keys(n.sol.c) : [])])].sort((a, b) => ((d.c[b] || 0) + 1e-3 * (n.rf.c[b] || 0)) - ((d.c[a] || 0) + 1e-3 * (n.rf.c[a] || 0)));
+                const rows = toks.map(t => { const pm = d.n ? (d.c[t] || 0) / d.n : 0, pr = me && R.n ? R.p(t) : null, dl = pr == null ? 0 : pm - pr, col = !me || pr == null || d.n < 10 ? 'border-white/10' : dl > .08 ? 'border-rose-500' : dl < -.08 ? 'border-emerald-500' : 'border-white/10', ch = (sel === t), kk = (k ? k + '/' : '') + n.st + '.' + t, child = N.get(kk), go = child && !child.end || (child && (child.me.n + child.rf.n) > 0 && t !== 'f'), ev = trM(d, t), se = trSE(d, t);
+                    return `<button data-tr="go" data-v="${esc(kk)}" class="w-full text-left rounded-xl border-l-4 ${col} ${ch ? 'bg-indigo-600/25 ring-1 ring-indigo-400' : 'bg-slate-900 hover:bg-slate-800'} px-3 py-2 min-h-[56px]">
+                        <div class="flex items-center justify-between gap-2"><span class="font-bold text-sm">${TRL_TOK[t] || t}</span><span class="text-sm font-black">${d.n ? Math.round(100 * pm) + ' %' : '–'}${pr != null ? `<span class="text-[11px] font-normal text-slate-400"> · ${R.sol ? 'GTO' : 'réf.'} ${Math.round(100 * pr)} %</span>` : ''}${go && t !== 'f' ? ' <span class="text-slate-500">›</span>' : ''}</span></div>
+                        <div class="relative h-1.5 rounded bg-slate-800 mt-1.5 overflow-hidden"><div class="absolute inset-y-0 left-0 ${me ? 'bg-indigo-400' : 'bg-slate-400'}" style="width:${100 * pm}%"></div>${pr != null ? `<div class="absolute inset-y-0 w-0.5 bg-amber-300" style="left:${Math.min(99.5, 100 * pr)}%"></div>` : ''}</div>
+                        <div class="text-[10.5px] text-slate-400 mt-1">${d.c[t] || 0} main${(d.c[t] || 0) > 1 ? 's' : ''}${ev != null && (d.c[t] || 0) >= 5 ? ` · résultat ${labF1(ev)} BB${se ? ` ±${(1.96 * se).toFixed(1).replace('.', ',')}` : ''}` : ''}</div></button>`; }).join('');
+                return `<div class="shrink-0 w-[244px] space-y-1.5"><div class="text-[11px] uppercase font-bold ${me ? 'text-indigo-300' : 'text-slate-400'}">${TRL_ST[n.st]} · ${me ? `à toi (${trPos(sp, role)})` : `adversaire (${trPos(sp, opp)})`}</div>
+                    <div class="text-[10.5px] text-slate-500">${d.n} main${d.n > 1 ? 's' : ''} · ${relBadge(d.n)}${me ? (R.sol ? ' · réf. : ton solveur' : '') : ' · ce que tes adversaires te font'}</div>${rows}</div>`; };
+            const keys = ['']; TRL.path.forEach((t, i) => keys.push(TRL.path.slice(0, i + 1).join('/')));
+            const cols = keys.map((k, i) => col(k, TRL.path[i] ? TRL.path[i].split('.')[1] : null)).filter(Boolean).join('<div class="shrink-0 w-3"></div>');
+            const crumbs = `<div class="flex flex-wrap items-center gap-1 text-xs mb-2"><button data-tr="crumb" data-v="0" class="min-h-[36px] px-2 rounded-lg bg-slate-800 text-slate-200">Début du flop</button>${TRL.path.map((t, i) => { const [st, tk] = t.split('.'), n = N.get(TRL.path.slice(0, i).join('/')); return `<span class="text-slate-500">›</span><button data-tr="crumb" data-v="${i + 1}" class="min-h-[36px] px-2 rounded-lg bg-slate-800 text-slate-200">${TRL_ST[st]} : ${n && n.actor === role ? 'toi' : trPos(sp, n && n.actor || opp)} ${TRL_TOKS[tk]}</button>`; }).join('')}</div>`;
+            // détail du nœud courant + ce qui coûte / rapporte
+            const cur = N.get(TRL.path.join('/')), C = trCosts(T, role), neg = C.filter(c => c.d < 0).sort((a, b) => a.d - b.d).slice(0, 5), pos = C.filter(c => c.d > 0).sort((a, b) => b.d - a.d).slice(0, 4);
+            const costItem = c => { const sure = Math.abs(c.d) > c.mg, noSol = c.n.st === 'F' && sp.k.startsWith('HU|L') && !c.n.sol.n; return `<button data-tr="jump" data-v="${esc(c.n.k)}" class="w-full text-left rounded-xl bg-slate-900 hover:bg-slate-800 px-3 py-2 min-h-[52px]"><div class="flex items-baseline gap-2"><b class="${c.d < 0 ? 'text-rose-400' : 'text-emerald-400'} text-base">${c.d > 0 ? '+' : ''}${simF1(c.d)}</b><span class="text-xs text-slate-200">${esc(trPathTxt(c.n.k))}</span></div><div class="text-[10.5px] text-slate-500">${c.n.me.n} mains · toi ${labF1(c.em)} BB par main contre ${labF1(c.er)} · ${sure ? 'écart net' : `dans la marge (±${simF1(c.mg)})`}${noSol ? ' · <span class="text-amber-300">pas encore solvé</span>' : ''}</div></button>`; };
+            let det = ''; if (cur) { const me = cur.actor === role, d = cur.me, em = d.n ? d.sum / d.n : null, er = cur.rf.n ? cur.rf.sum / cur.rf.n : null, reach = T.nMe ? d.n / T.nMe : 0, reachR = T.nRf ? cur.rf.n / T.nRf : 0;
+                det = `<div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="text-xs text-slate-400">${esc(trPathTxt(cur.k))}</div><div class="font-bold mt-1">${cur.end ? 'Fin de la main' : me ? `À toi de parler (${trPos(sp, role)})` : `L'adversaire parle (${trPos(sp, opp)})`}</div>
+                    <div class="text-sm text-slate-300 mt-1">Tu arrives ici dans <b>${Math.round(100 * reach)} %</b> de tes mains du spot, la référence dans ${Math.round(100 * reachR)} %.</div>
+                    ${em != null ? `<div class="text-sm text-slate-300">Ton résultat depuis ici : <b class="${em >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${labF1(em)} BB</b> par main${er != null ? ` · référence ${labF1(er)} BB` : ''} <span class="text-[11px] text-slate-500">(${d.n} mains, all-in ajustés)</span></div><div class="text-sm text-slate-300">Mains gagnées : ${Math.round(100 * d.won / Math.max(1, d.n))} %${cur.rf.n ? ` · référence ${Math.round(100 * cur.rf.won / cur.rf.n)} %` : ''}</div>` : ''}</div>`; }
+            if (cur && !cur.end) det += trExplainHtml(cur, N, T, role, sp, C, hero);
+            const side = `${det}<div class="font-bold text-sm mt-3 mb-1">💸 Ce qui te coûte le plus <span class="text-[11px] font-normal text-slate-400">BB pour 100 mains du spot</span></div><div class="space-y-1.5">${neg.map(costItem).join('') || '<div class="text-xs text-slate-500">Rien de net pour l\'instant.</div>'}</div>
+                <div class="font-bold text-sm mt-3 mb-1">💰 Ce qui te rapporte le plus</div><div class="space-y-1.5">${pos.map(costItem).join('') || '<div class="text-xs text-slate-500">Rien de net pour l\'instant.</div>'}</div>
+                ${neg.some(c => c.n.st === 'F' && sp.k.startsWith('HU|L') && !c.n.sol.n) ? '<button data-tr="todo" class="mt-2 w-full min-h-[44px] rounded-xl bg-amber-700 text-white text-sm font-bold">🗂 Voir les spots à solver</button>' : ''}`;
+            const legend = `<div class="text-[11px] text-slate-500 mt-2"><span class="inline-block w-3 h-2 bg-rose-500 align-middle mr-1"></span>tu le fais plus souvent que la référence (+8 points) · <span class="inline-block w-3 h-2 bg-emerald-500 align-middle mr-1"></span>moins souvent · trait jaune : la référence. Résultats en BB par main, all-in ajustés, avec leur marge. ${TRL.ref === 'sol' ? 'Au flop, la référence est ton solveur appliqué à tes propres mains (même main, même flop ou flop solvé le plus proche) ; à la turn et à la river, c\'est le field.' : 'Référence : tes adversaires quand ce sont eux qui sont à ta place sur ce spot (même position, mêmes stacks).'}</div>`;
+            return `${head}<div class="grid gap-3 mt-3 lg:grid-cols-[1fr_330px]"><div class="min-w-0">${crumbs}<div id="trCols" class="flex overflow-x-auto pb-2 custom-scrollbar">${cols}</div>${legend}</div><div>${side}</div></div>`;
+        }
+        // le solveur sert de référence au flop, le field ensuite
+        { const _ro = trRefOf; trRefOf = function (n, m) { return m === 'sol' && n.st !== 'F' ? _ro(n, 'f') : _ro(n, m); }; }
+        document.addEventListener('click', e => { const b = e.target.closest('#labBox [data-tr]'); if (!b) return; const a = b.dataset.tr, v = b.dataset.v;
+            if (a === 'spot') { TRL.spot = v; TRL.role = null; TRL.path = []; }
+            else if (a === 'role') { TRL.role = v; TRL.path = []; } else if (a === 'dep') { TRL.dep = v; } else if (a === 'ref') { TRL.ref = v; }
+            else if (a === 'go' || a === 'jump') { TRL.path = v ? v.split('/') : []; } else if (a === 'crumb') { TRL.path = TRL.path.slice(0, +v); }
+            else if (a === 'todo') { LAB.seg = 'todo'; }
+            else if (a === 'fam') { TRL.fam = v; }
+            else if (a === 'drill') { const ix = TRL.ix, hero = playerSelect.value; const T = trTree(ix, hero, TRL.spot, TRL.role, TRL.dep, TRL.ref === 'sol' ? 'f' : TRL.ref, TRL.fam); TRL.drill = trDrillList(T.N.get(TRL.path.join('/')), hero); if (TRL.drill.length) { LAB.seg = 'train'; labStart('node'); window.scrollTo({ top: document.getElementById('labBox').getBoundingClientRect().top + scrollY - 80, behavior: 'smooth' }); return; } }
+            labRender(); setTimeout(() => { const c = document.getElementById('trCols'); if (c) c.scrollLeft = c.scrollWidth; }, 20); });
+        // ---- ce point en clair, exercice sur ce point, par type de flop ----
+        const trRefLab = R => R.sol ? 'ton solveur' : TRL.ref === 'f' ? 'tes adversaires à ta place' : `les « ${TRL.ref} » à ta place`;
+        const trPct = x => Math.round(100 * x) + ' %';
+        function trDrillList(cur, hero) { if (!cur || !cur.dj.length) return []; const set = new Set(cur.dj); let IX; try { IX = labIndex(hero); } catch (e) { return []; } return IX.D.filter(d => set.has(d.h.id + '|' + d.i)); }
+        function trExplainHtml(cur, N, T, role, sp, C, hero) {
+            const me = cur.actor === role, d = cur.me, L = [];
+            if (me && d.n >= 10) { const R = trRefOf(cur, TRL.ref); if (R.n) { const toks = [...new Set([...Object.keys(d.c), ...Object.keys(cur.rf.c), ...(R.sol ? Object.keys(cur.sol.c) : [])])].map(t => ({ t, m: (d.c[t] || 0) / d.n, r: R.p(t) })).sort((a, b) => Math.abs(b.m - b.r) - Math.abs(a.m - a.r)), g = toks[0];
+                    L.push(!g || Math.abs(g.m - g.r) < .08 ? `Ici, tes fréquences sont proches de ${trRefLab(R)}.` : `Tu choisis <b>${TRL_TOKS[g.t]}</b> dans ${trPct(g.m)} des cas, ${trRefLab(R)} dans ${trPct(g.r)} : <b>${g.m > g.r ? 'plus' : 'moins'} souvent</b>${d.n < 50 ? ' (encore peu de mains, à confirmer)' : ''}.`); } }
+            if (!me && d.n >= 20) { const ks = cur.k.split('/'), last = ks[ks.length - 1] || '', t = last.split('.')[1] || '', par = N.get(ks.slice(0, -1).join('/'));
+                if (t[0] === 'b' && par && par.actor === role && par.me.c[t]) { const f = par.me.fr[t] / par.me.c[t], be = f / (1 + f), fo = (d.c.f || 0) / d.n;
+                    L.push(`Face à ta mise (environ ${trPct(f)} du pot), tes adversaires couchent <b>${trPct(fo)}</b>. À cette taille, un bluff pur est rentable dès ${trPct(be)} de fold : ${fo > be + .05 ? '<b>tu peux y mettre plus de bluffs</b>.' : fo < be - .05 ? '<b>ils ne couchent pas assez</b> : mise surtout pour la value, et bluffe moins.' : 'c\'est proche de l\'équilibre, pas d\'exploit évident.'}`); }
+                else { const top = Object.entries(d.c).sort((a, b) => b[1] - a[1])[0]; if (top) L.push(`Ce que tes adversaires font le plus ici : <b>${TRL_TOKS[top[0]]}</b> (${trPct(top[1] / d.n)}).`); } }
+            const sub = C.filter(c => c.n !== cur && (cur.k === '' || c.n.k.startsWith(cur.k + '/')) && c.d < 0 && Math.abs(c.d) > c.mg).sort((a, b) => a.d - b.d)[0];
+            L.push(sub ? `Plus loin dans cette branche, ta plus grosse perte nette : <button data-tr="jump" data-v="${esc(sub.n.k)}" class="underline text-amber-300">${esc(trPathTxt(sub.n.k))}</button> (${simF1(sub.d)} BB pour 100 mains du spot).` : 'Rien de net ne te coûte plus loin dans cette branche.');
+            const dl = me ? trDrillList(cur, hero) : [];
+            let fam = ''; if (me && TRL.fam === 'all' && d.n >= 30) { const R = trRefOf(cur, TRL.ref), all = [...new Set([...Object.keys(d.c), ...(R.sol ? Object.keys(cur.sol.c) : Object.keys(cur.rf.c))])].map(t => ({ t, g: Math.abs((d.c[t] || 0) / d.n - R.p(t)) })).sort((a, b) => b.g - a.g), t = all[0] && all[0].t;
+                const src = R.sol ? cur.sol.cf : cur.rf.cf, rows = t ? TXFAM.map(f => { const a = d.cf[f.k], b = src[f.k]; if (!a || a.n < 8) return ''; const pm = (a.c[t] || 0) / a.n, pr = b && b.n >= 5 ? (b.c[t] || 0) / b.n : null, dl2 = pr == null ? 0 : pm - pr;
+                    return `<button data-tr="fam" data-v="${f.k}" class="w-full grid grid-cols-[1fr_44px_52px_52px] items-center gap-1 text-left text-xs min-h-[40px] px-2 rounded-lg hover:bg-slate-800 border-t border-white/5"><span>${esc(f.l)}</span><span class="text-slate-400 text-right">${a.n} ${relDot(a.n)}</span><b class="text-right ${pr == null || a.n < 15 ? '' : dl2 > .08 ? 'text-rose-400' : dl2 < -.08 ? 'text-emerald-400' : ''}">${trPct(pm)}</b><span class="text-right text-slate-400">${pr == null ? '–' : trPct(pr)}</span></button>`; }).join('') : '';
+                const big = t ? TXFAM.map(f => { const a = d.cf[f.k], b = src[f.k]; if (!a || a.n < 30 || !b || b.n < 10) return null; const pm = (a.c[t] || 0) / a.n, pr = (b.c[t] || 0) / b.n; return { f, pm, pr, g: pm - pr }; }).filter(x => x && Math.abs(x.g) >= .12).sort((a, b) => Math.abs(b.g) - Math.abs(a.g)) : [];
+                if (big.length) L.splice(1, 0, `Par type de flop, ça varie : ${big.slice(0, 2).map(x => `sur <b>${esc(x.f.l)}</b> tu choisis ${TRL_TOKS[t]} ${trPct(x.pm)} contre ${trPct(x.pr)}`).join(' ; ')}.`);
+                if (rows) fam = `<div class="mt-3"><div class="text-xs font-bold text-slate-200 mb-1">Par type de flop : <span class="text-indigo-300">${TRL_TOKS[t]}</span></div><div class="grid grid-cols-[1fr_44px_52px_52px] gap-1 text-[10px] uppercase text-slate-500 px-2"><span>Flop</span><span class="text-right">Mains</span><span class="text-right">Toi</span><span class="text-right">Réf.</span></div>${rows}<div class="text-[10.5px] text-slate-500 mt-1">Un clic sur une ligne filtre l'arbre sur ce type de flop.</div></div>`; }
+            return `<div class="rounded-xl bg-slate-900 border border-indigo-500/30 p-3 mt-2"><div class="text-xs font-bold text-indigo-300 mb-1">🗣 Ce point en clair</div><div class="text-sm text-slate-200 space-y-1.5">${L.map(x => `<p>${x}</p>`).join('')}</div>
+                ${dl.length ? `<button data-tr="drill" class="mt-3 w-full min-h-[48px] rounded-xl bg-indigo-600 text-white font-bold text-sm">🎯 M'entraîner sur ce point <span class="font-normal opacity-80">(${dl.length} de tes mains)</span></button>` : ''}${fam}</div>`;
+        }
+        LAB_G.node = { t: '🌳 Point de ton arbre', d: 'Tes vraies mains passées par ce point de ton arbre, corrigées comme dans les autres exercices (par ton solveur au flop des pots limpés HU quand tu as le fichier).' };
+        { const _lp = labPick; labPick = function (hero, g) { if (g === 'node') { const a = [...TRL.drill]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, 12); } return _lp.apply(this, arguments); }; }
+
+        // ===================== 96. RÉCAP DE SÉANCE =====================
+        // Tout est calculé par l'app (chance aux all-in, charte / solveur préflop, ton solveur GTO+ au flop, arbre de tes lignes) ; l'IA ne fait que rédiger, si tu la lances.
+        const RC = { i: 0, ai: '', aiBusy: false, toast: null };
+        const RC_SU = { s: '♠', h: '♥', d: '♦', c: '♣' }, rcCard = c => `<span class="${c[1] === 'h' || c[1] === 'd' ? 'text-rose-300' : 'text-slate-100'} font-bold">${c[0] === 'T' ? '10' : c[0]}${RC_SU[c[1]] || ''}</span>`, rcCards = s => String(s || '').split(' ').filter(Boolean).map(rcCard).join(' ');
+        const rcBB = x => (x > 0 ? '+' : '') + simF1(x) + ' BB';
+        function rcSessions(hero) {
+            const H = allParsedHands.filter(h => h.buyin !== 0 && h.players.includes(hero)).map(h => ({ h, t: labTs(h) })).filter(x => x.t).sort((a, b) => a.t - b.t), S = []; let cur = null, prev = 0;
+            H.forEach(x => { if (!cur || x.t - prev > 30 * 6e4) S.push(cur = { H: [], t0: x.t }); cur.H.push(x.h); cur.t1 = x.t; prev = x.t; }); return S;
+        }
+        let _rcK = null, _rcD = null;
+        function rcData(hero, idx) {
+            const S = rcSessions(hero); if (!S.length) return null; idx = Math.max(0, Math.min(S.length - 1, idx)); const s = S[S.length - 1 - idx], key = hero + '|' + allParsedHands.length + '|' + idx + '|' + Object.keys(GTP).length;
+            if (_rcK === key) return _rcD; const H = s.H, ids = new Set(H.map(h => h.id)), tids = new Set(H.map(h => h.tid).filter(Boolean));
+            // spins
+            let sp = []; try { sp = computeSpins(hero).filter(x => tids.has(x.tid)); } catch (e) { }
+            const wins = sp.filter(x => x.place === 1), prof = sp.filter(x => x.profit != null), mults = wins.filter(x => x.prize != null && x.buyin).map(x => Math.round(x.prize / x.buyin * 10) / 10);
+            // résultats main par main (all-in ajustés)
+            const R = new Map(); let net = 0, cev = 0; H.forEach(h => { if (!(h.hole && h.hole[0] === hero)) return; let r = { net: 0, c: 0, luck: 0 }; try { r = revCEV(h, hero); } catch (e) { } R.set(h, r); net += r.net; cev += r.c; });
+            // éliminations
+            const last = {}; H.forEach(h => { if (h.tid) last[h.tid] = h; }); const elim = new Set(Object.values(last).filter(h => { try { return endStacks(h)[hero] <= 0; } catch (e) { return false; } }));
+            // préflop (charte / Nash / modèle field)
+            let pre = []; try { pre = trPool(hero).filter(x => ids.has(x.h.id) && x.act !== 'other'); } catch (e) { } const preAll = (() => { try { return trPool(hero).filter(x => x.act !== 'other'); } catch (e) { return []; } })();
+            const preErr = pre.filter(x => x.err), preRate = pre.length ? preErr.length / pre.length : 0, preRate0 = preAll.length ? preAll.filter(x => x.err).length / preAll.length : 0, preCost = preErr.reduce((a, x) => a + (x.loss || 0), 0);
+            const preBy = {}; preErr.forEach(x => { const k = x.scen + '|' + (x.act === 'fold' ? 'tight' : 'loose'), g = preBy[k] || (preBy[k] = { scen: x.scen, dir: x.act === 'fold' ? 'tight' : 'loose', label: x.label, n: 0, cost: 0, ex: [] }); g.n++; g.cost += x.loss || 0; g.ex.push(x); });
+            const preTop = Object.values(preBy).sort((a, b) => b.cost - a.cost);
+            // postflop : ton solveur au flop (pots limpés HU)
+            let J = [], J0 = []; try { J0 = gtpJudge(hero).L; J = J0.filter(x => ids.has(x.h.id)); } catch (e) { }
+            const postErr = J.filter(x => x.err), postRate = J.length ? postErr.length / J.length : 0, postRate0 = J0.length ? J0.filter(x => x.err).length / J0.length : 0, postCost = postErr.reduce((a, x) => a + (x.cost || 0), 0);
+            // verdict par main
+            const preOf = new Map(pre.map(x => [x.h.id, x])), postOf = new Map(); postErr.forEach(x => { const o = postOf.get(x.h.id); if (!o || (x.cost || 0) > (o.cost || 0)) postOf.set(x.h.id, x); });
+            const verdict = h => { const r = R.get(h) || { net: 0, c: 0, luck: 0 }, p = preOf.get(h.id), q = postOf.get(h.id);
+                if (p && p.err && (p.loss || 0) >= .3) return { k: 'err', l: 'erreur préflop', d: `${esc(p.label)} : tu ${p.act === 'fold' ? 'couches' : p.act === 'call' ? 'paies' : 'pousses'} à ${simF1(p.S)} BB alors que la référence ${p.act === 'fold' ? 'joue' : 'couche'} (${rcBB(-(p.loss || 0))}).` };
+                if (q) return { k: 'err', l: 'erreur au flop', d: `${GTP_NL[q.node] || q.node} : tu joues ${esc(gtpLab(q.R.acts[q.j], q.R))}, ton solveur le fait ${labPc(q.fch)} du temps${q.cost != null ? ` (${rcBB(-q.cost)})` : ''}.` };
+                if (Math.abs(r.luck) >= 1.5) { const ahead = r.c > .3; return r.luck < 0 ? (ahead ? { k: 'var', l: 'variance', d: `Tu étais devant à l'all-in (${rcBB(r.c)} d'espérance), tu finis à ${rcBB(r.net)}.` } : { k: 'var', l: 'derrière à l\'all-in', d: `Ton espérance au tapis était ${rcBB(r.c)}, tu finis à ${rcBB(r.net)}.` }) : (ahead ? { k: 'ok', l: 'bien joué', d: `Devant à l'all-in (${rcBB(r.c)} d'espérance), et ça tient : ${rcBB(r.net)}.` } : { k: 'luck', l: 'chanceux', d: `Derrière à l'all-in (${rcBB(r.c)} d'espérance), tu gagnes quand même ${rcBB(r.net)}.` }); }
+                const b = String(h.board || '').split(' ').filter(Boolean), oth = Object.entries(h.shown || {}).filter(([p]) => p !== hero);
+                if (r.net < -2 && b.length >= 3 && oth.length) { const mc = txCat(h.hole[1], b); if ((mc === 'fort' || mc === 'ovp') && oth.some(([, hc]) => txCat(hc, b) === 'fort')) return { k: 'setup', l: 'setup', d: 'Grosse main contre plus grosse main : difficile de l\'éviter à ces profondeurs.' }; }
+                return { k: 'ok', l: 'pas d\'erreur repérée', d: '' }; };
+            const ent = [...R.entries()], big = [...ent.filter(x => x[1].net < 0).sort((a, b) => a[1].net - b[1].net).slice(0, 3), ...ent.filter(x => x[1].net > 0).sort((a, b) => b[1].net - a[1].net).slice(0, 2)].map(([h]) => h); [...elim].filter(h => !big.includes(h) && R.has(h)).slice(0, 2).forEach(h => big.push(h));
+            const K = big.map(h => ({ h, r: R.get(h), v: verdict(h), elim: elim.has(h) })).sort((a, b) => Math.abs(b.r.net) - Math.abs(a.r.net));
+            // arbre : ta ligne qui coûte le plus, et combien de mains de la séance y sont passées
+            let tree = null; try { const ix = TRL.ix && TRL.ix.key === hero + '|' + allParsedHands.length ? TRL.ix : null; if (ix) { const best = [];
+                Object.values(ix.S).filter(x => x.nh.O + x.nh.I >= 60).forEach(x => ['O', 'I'].forEach(role => { if (x.nh[role] < 40) return; const T = trTree(ix, hero, x.k, role, 'all', 'f'); _trCtx = { N: T.N, role, sp: x };
+                    trCosts(T, role).filter(c => c.d < 0 && Math.abs(c.d) > c.mg).forEach(c => best.push({ sp: x, role, c, txt: trPathTxt(c.n.k), ns: c.n.ids.filter(id => ids.has(id)).length })); }));
+                best.sort((a, b) => a.c.d - b.c.d); tree = best[0] || 'none'; } } catch (e) { console.error('rc tree', e); }
+            const luck = net - cev, errCost = preCost + postCost;
+            _rcK = key; return _rcD = { s, idx, nS: S.length, H, ids, sp, wins, prof, mults, net, cev, luck, elim, pre, preErr, preRate, preRate0, preCost, preTop, J, postErr, postRate, postRate0, postCost, K, tree, errCost };
+        }
+        const GTP_NL = { 'BB|first': 'Pot limpé HU, BB parle en premier', 'SB|x': 'Pot limpé HU, BB checke', 'BB|bet': 'Pot limpé HU, SB mise', 'SB|xr': 'Pot limpé HU, BB check-raise', 'SB|bet': 'Pot limpé HU, BB mise' };
+        function rcAvis(D) {
+            const L = [], res = D.net, luck = D.luck, err = D.errCost;
+            if (res < 0 && luck < 0 && -luck > Math.max(5, 1.5 * err)) L.push(`Séance perdante <b>surtout à cause de la variance</b> : ${rcBB(luck)} de chance aux all-in, contre ${simF1(err)} BB perdus en erreurs repérées. Sans la chance aux all-in, tu finis à ${rcBB(D.cev)}.`);
+            else if (res > 0 && luck > Math.max(5, 1.5 * Math.abs(D.cev))) L.push(`Séance gagnante, <b>aidée par la chance</b> : ${rcBB(luck)} aux all-in. Ton résultat sans chance : ${rcBB(D.cev)}.`);
+            else if (err >= 3 && err > Math.abs(luck)) L.push(`Ce sont <b>surtout tes erreurs</b> qui pèsent : ${simF1(err)} BB perdus en erreurs repérées, contre ${rcBB(luck)} de chance aux all-in.`);
+            else L.push(`Séance ${res >= 0 ? 'gagnante' : 'perdante'} de ${rcBB(res)} (${rcBB(D.cev)} sans la chance aux all-in) : rien de marquant côté chance ni côté erreurs.`);
+            if (D.pre.length >= 30) L.push(D.preRate > D.preRate0 * 1.3 && D.preRate - D.preRate0 > .03 ? `Préflop, plus d'erreurs que d'habitude (${labPc(D.preRate)} contre ${labPc(D.preRate0)}) : fatigue ou tilt possible.` : D.preRate < D.preRate0 * .8 ? `Préflop, mieux que d'habitude (${labPc(D.preRate)} d'erreurs contre ${labPc(D.preRate0)}).` : `Préflop, dans ta moyenne (${labPc(D.preRate)} d'erreurs).`);
+            return L;
+        }
+        function rcHtml(hero) {
+            const D = rcData(hero, RC.i); if (!D) return '<div class="text-sm text-slate-400">Pas encore de séance repérée dans tes mains.</div>';
+            if (!TRL.ix || TRL.ix.key !== hero + '|' + allParsedHands.length) trBuild(hero).then(ix => { if (ix) { _rcK = null; if (GD.open && GD.view === 'rc') gdRender(); } });
+            const f = t => new Date(t).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }), dur = Math.round((D.s.t1 - D.s.t0) / 6e4);
+            const sec = (t, b) => `<div class="mt-4"><div class="font-bold text-sm text-slate-100 mb-1.5">${t}</div>${b}</div>`;
+            const nav = `<div class="flex items-center gap-2 mb-2"><button data-rc="prev" class="w-11 h-11 rounded-xl bg-slate-800 text-slate-200 ${D.idx >= D.nS - 1 ? 'opacity-30 pointer-events-none' : ''}">‹</button><div class="flex-1 text-center text-xs text-slate-300"><b>${D.idx ? `Séance −${D.idx}` : 'Dernière séance'}</b><br>${f(D.s.t0)} · ${dur} min · ${D.H.length} mains</div><button data-rc="next" class="w-11 h-11 rounded-xl bg-slate-800 text-slate-200 ${D.idx ? '' : 'opacity-30 pointer-events-none'}">›</button></div>`;
+            const profit = D.prof.reduce((a, x) => a + x.profit, 0), md = {}; D.mults.forEach(m => md[m] = (md[m] || 0) + 1);
+            const head = `<div class="rounded-xl bg-slate-900 border border-white/10 p-3 text-sm text-slate-200"><div><b>${D.sp.length} spins</b> · ${D.wins.length} gagné${D.wins.length > 1 ? 's' : ''}${D.sp.length ? ` (${labPc(D.wins.length / D.sp.length)})` : ''}${D.prof.length ? ` · <b class="${profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${profit >= 0 ? '+' : ''}${profit.toFixed(2).replace('.', ',')} €</b>` : ''}${Object.keys(md).length ? ` · multis ${Object.keys(md).sort((a, b) => b - a).map(m => `×${m}${md[m] > 1 ? ` (${md[m]})` : ''}`).join(', ')}` : ''}</div>
+                <div class="mt-1">En jetons : <b class="${D.net >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${rcBB(D.net)}</b> · à l'EV all-in : <b>${rcBB(D.cev)}</b> · chance aux all-in : <b class="${D.luck >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${rcBB(D.luck)}</b></div></div>`;
+            const VC = { err: 'text-rose-300', var: 'text-amber-300', luck: 'text-sky-300', setup: 'text-amber-200', ok: 'text-emerald-300' };
+            const hand = x => { const h = x.h, b = String(h.board || '').split(' ').filter(Boolean); let pos = ''; try { pos = pfInfo(h)[hero].pos; } catch (e) { }
+                return `<div class="rounded-xl bg-slate-900 border border-white/10 p-2.5"><div class="flex items-center gap-2 flex-wrap"><b class="${x.r.net >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${rcBB(x.r.net)}</b><span class="text-sm">${rcCards(h.hole[1])}</span><span class="text-xs text-slate-400">${pos}${b.length ? ' · ' + rcCards(b.join(' ')) : ' · préflop'}</span>${x.elim ? '<span class="text-[10px] px-1.5 rounded bg-rose-900/60 text-rose-200">élimination</span>' : ''}</div>
+                    <div class="text-xs mt-1"><b class="${VC[x.v.k]}">${x.v.l}</b>${x.v.d ? ` · <span class="text-slate-300">${x.v.d}</span>` : ''}</div><button data-rc="replay" data-v="${esc(h.id)}" class="mt-1.5 min-h-[40px] px-3 rounded-lg bg-slate-800 text-xs text-slate-200 font-bold">🎬 Revoir</button></div>`; };
+            const errs = [...D.preErr.map(x => ({ c: x.loss || 0, html: `<b class="text-rose-300">${rcBB(-(x.loss || 0))}</b> · ${esc(x.label)} : ${rcCards(x.hole)} à ${simF1(x.S)} BB, tu ${x.act === 'fold' ? 'couches' : x.act === 'call' ? 'paies' : 'pousses'}, la référence ${x.act === 'fold' ? 'joue' : 'couche'}.`, id: x.h.id, ex: `<button data-rc="pre" data-v="${esc(x.scen)}" data-d="${x.act === 'fold' ? 'tight' : 'loose'}" class="min-h-[40px] px-3 rounded-lg bg-indigo-700 text-xs text-white font-bold">🎯 Exercice (ce spot)</button>` })),
+                ...D.postErr.map(x => ({ c: x.cost || 0, html: `<b class="text-rose-300">${x.cost != null ? rcBB(-x.cost) : 'écart'}</b> · ${GTP_NL[x.node] || ''} : ${rcCards(x.hc)} sur ${rcCards(x.board.join(' '))}, tu joues ${esc(gtpLab(x.R.acts[x.j], x.R))}, ton solveur ${labPc(x.fch)}.`, id: x.h.id, ex: `<button data-rc="post" class="min-h-[40px] px-3 rounded-lg bg-indigo-700 text-xs text-white font-bold">🎯 Rejouer tes décisions postflop</button>` }))].sort((a, b) => b.c - a.c).slice(0, 4);
+            const errH = errs.length ? errs.map(e => `<div class="rounded-xl bg-slate-900 border border-white/10 p-2.5"><div class="text-xs text-slate-200">${e.html}</div><div class="flex gap-2 mt-1.5 flex-wrap"><button data-rc="replay" data-v="${esc(e.id)}" class="min-h-[40px] px-3 rounded-lg bg-slate-800 text-xs text-slate-200 font-bold">🎬 Revoir</button>${e.ex}</div></div>`).join('') : '<div class="text-xs text-slate-400">Aucune erreur chiffrée repérée (préflop jugé par ta charte et tes modèles, flop des pots limpés HU par ton solveur).</div>';
+            const pt = D.preTop[0], preH = D.pre.length ? `<div class="text-xs text-slate-300">${D.pre.length} décisions jugées · <b>${labPc(D.preRate)}</b> d'erreurs (habituellement ${labPc(D.preRate0)}) · ${simF1(D.preCost)} BB perdus.${pt ? ` Le spot qui a le plus coûté : <b>${esc(pt.label)}</b>, ${pt.dir === 'tight' ? 'trop serré' : 'trop large'} (${pt.n} fois, par ex. ${pt.ex.slice(0, 2).map(x => rcCards(x.hole)).join(' et ')}).` : ''}</div>` : '<div class="text-xs text-slate-400">Pas de décision préflop jugée dans cette séance.</div>';
+            const tr = D.tree, postH = `<div class="text-xs text-slate-300">${D.J.length ? `Au flop des pots limpés HU, ${D.J.length} décisions comparées à ton solveur · <b>${D.postErr.length}</b> écart${D.postErr.length > 1 ? 's' : ''} net${D.postErr.length > 1 ? 's' : ''} (${labPc(D.postRate)}, habituellement ${labPc(D.postRate0)}).` : 'Pas de décision comparable à ton solveur dans cette séance.'}</div>
+                ${tr === null ? '<div class="text-xs text-slate-500 mt-1">Lecture de ton arbre de lignes…</div>' : tr === 'none' ? '' : `<div class="text-xs text-slate-300 mt-1.5">Ta ligne qui coûte le plus en ce moment (${esc(tr.sp.lab)}, toi ${tr.role === 'O' ? 'hors position' : 'en position'}) : <b>${esc(tr.txt)}</b>, ${simF1(tr.c.d)} BB pour 100 mains du spot. <b>${tr.ns}</b> main${tr.ns > 1 ? 's' : ''} de cette séance y ${tr.ns > 1 ? 'sont passées' : 'est passée'}.</div>`}`;
+            const work = []; if (pt) work.push(`<button data-rc="pre" data-v="${esc(pt.scen)}" data-d="${pt.dir}" class="w-full text-left min-h-[48px] px-3 rounded-xl bg-slate-900 border border-white/10 text-sm">🎯 ${esc(pt.label)} (${pt.dir === 'tight' ? 'trop serré' : 'trop large'}) <span class="text-xs text-slate-400">exercice du Trainer</span></button>`);
+            if (tr && tr !== 'none') work.push(`<button data-rc="tree" class="w-full text-left min-h-[48px] px-3 rounded-xl bg-slate-900 border border-white/10 text-sm">🌳 ${esc(tr.txt)} <span class="text-xs text-slate-400">ouvrir dans l'arbre</span></button>`);
+            if (rcDrill(hero, D).length) work.push(`<button data-rc="post" class="w-full text-left min-h-[48px] px-3 rounded-xl bg-slate-900 border border-white/10 text-sm">🔁 Rejouer tes décisions postflop de la séance <span class="text-xs text-slate-400">${rcDrill(hero, D).length} décisions</span></button>`);
+            const ai = gdAI() ? `<div class="mt-4">${RC.ai ? `<div class="rounded-xl bg-indigo-950/50 border border-indigo-500/30 p-3 text-sm text-slate-100 whitespace-pre-wrap">${esc(RC.ai)}</div><div class="text-[10.5px] text-slate-500 mt-1">Rédigé par l'IA à partir des chiffres ci-dessus uniquement.</div>` : `<button data-rc="ai" class="w-full min-h-[48px] rounded-xl bg-indigo-600 text-white font-bold text-sm" ${RC.aiBusy ? 'disabled' : ''}>${RC.aiBusy ? 'L\'IA rédige…' : '✍️ Résumé rédigé par l\'IA'}</button>`}</div>` : '';
+            return nav + head + sec('Les mains décisives <span class="text-[11px] font-normal text-slate-400">tes 3 plus grosses pertes, tes 2 plus gros gains, tes éliminations</span>', `<div class="space-y-1.5">${D.K.map(hand).join('')}</div>`) + sec('Les erreurs qui coûtent', `<div class="space-y-1.5">${errH}</div>`) + sec('Préflop', preH) + sec('Postflop', postH)
+                + (work.length ? sec('À travailler', `<div class="space-y-1.5">${work.join('')}</div>`) : '') + sec('Mon avis', rcAvis(D).map(x => `<p class="text-sm text-slate-200 mb-1">${x}</p>`).join('')) + ai
+                + `<div class="text-[10.5px] text-slate-500 mt-3">Une séance = des mains sans pause de plus de 30 minutes. Chance aux all-in : écart entre ton résultat et ton espérance au moment du tapis. Erreurs chiffrées : préflop par ta charte et tes modèles, flop des pots limpés HU par tes fichiers GTO+ ; ailleurs, rien n'est compté comme erreur.</div>`;
+        }
+        function rcDrill(hero, D) { try { return labIndex(hero).D.filter(d => D.ids.has(d.h.id)); } catch (e) { return []; } }
+        LAB_G.rc = { t: '🧾 Tes décisions de la séance', d: 'Tes décisions postflop de ta dernière séance, corrigées comme dans les autres exercices.' };
+        { const _lp = labPick; labPick = function (hero, g) { if (g === 'rc') { const D = rcData(hero, RC.i); return D ? rcDrill(hero, D).slice(0, 20) : []; } return _lp.apply(this, arguments); }; }
+        function rcPreTrain(scen, dir) {
+            const hero = playerSelect.value, D = rcData(hero, RC.i); let P = []; try { P = trPool(hero); } catch (e) { return; }
+            const errs = P.filter(s => s.scen === scen && s.err && D.ids.has(s.h.id) && (dir === 'tight') === (s.act === 'fold')), other = P.filter(s => s.scen === scen && s.err && !D.ids.has(s.h.id) && (dir === 'tight') === (s.act === 'fold')).sort(() => Math.random() - .5).slice(0, 4);
+            const rel = P.filter(s => s.scen === scen && s.act !== 'other' && !s.err && (dir === 'tight' ? s.edge > .05 : s.edge < -.05)), base = [...errs.slice(0, 8), ...other], spots = [...base, ...trPick(rel, Math.max(0, 15 - base.length), 'close')].sort(() => Math.random() - .5);
+            if (!spots.length) return; trCfg = { ...trCfg, fmt: scen.startsWith('HU') ? 'HU' : '3-max', sc: scen, prio: 'leak', n: '15' };
+            showTab('train'); tr2 = { hero, cfg: { ...trCfg }, spots, i: 0, answers: [], answered: false, done: false, t0: Date.now(), saved: false }; renderTrain(); window.scrollTo && window.scrollTo(0, 0);
+        }
+        async function rcAI(hero) {
+            const D = rcData(hero, RC.i); if (!D || RC.aiBusy) return; RC.aiBusy = true; gdRender();
+            const strip = x => String(x).replace(/<[^>]+>/g, '');
+            const facts = [`${D.sp.length} spins, ${D.wins.length} gagnés.`, `Résultat en jetons ${rcBB(D.net)}, à l'EV all-in ${rcBB(D.cev)}, chance aux all-in ${rcBB(D.luck)}.`,
+                ...D.K.map(x => `Main ${strip(x.h.hole[1])} : ${rcBB(x.r.net)}, verdict ${x.v.l}${x.v.d ? ' : ' + strip(x.v.d) : ''}${x.elim ? ' (main de l\'élimination)' : ''}.`),
+                `Préflop : ${D.pre.length} décisions, ${labPc(D.preRate)} d'erreurs (habituellement ${labPc(D.preRate0)}), ${simF1(D.preCost)} BB perdus.`,
+                D.J.length ? `Flop des pots limpés HU : ${D.J.length} décisions comparées au solveur, ${D.postErr.length} écarts nets.` : '',
+                D.tree && D.tree !== 'none' ? `Ligne qui coûte le plus en ce moment : ${D.tree.txt} (${simF1(D.tree.c.d)} BB/100 mains du spot), ${D.tree.ns} mains de la séance.` : '', ...rcAvis(D).map(strip)].filter(Boolean);
+            const prompt = `Tu es le coach poker d'un joueur de Spin & Go (Expresso Nitro, 15 BB). Écris le récap de sa séance en français, en le tutoyant, en 6 à 8 phrases simples : le résultat et la part de chance, les 2 mains les plus marquantes, ce qu'il doit travailler. N'utilise QUE les faits ci-dessous, n'invente aucun chiffre, aucune main, aucun conseil technique qui n'y figure pas.\n\nFAITS :\n- ${facts.join('\n- ')}`;
+            try { RC.ai = String(await aiRun(prompt, { max: 450 }) || '').trim() || 'L\'IA n\'a rien renvoyé.'; } catch (e) { RC.ai = 'L\'IA n\'est pas disponible pour l\'instant.'; }
+            RC.aiBusy = false; if (GD.open && GD.view === 'rc') gdRender();
+        }
+        document.addEventListener('click', e => { const b = e.target.closest('#gdPanel [data-rc]'); if (!b) return; const a = b.dataset.rc, hero = playerSelect.value, narrow = window.innerWidth < 900;
+            if (a === 'prev') { RC.i++; RC.ai = ''; return gdRender(); } if (a === 'next') { RC.i = Math.max(0, RC.i - 1); RC.ai = ''; return gdRender(); }
+            if (a === 'ai') return rcAI(hero);
+            if (a === 'replay') { const h = allParsedHands.find(x => x.id === b.dataset.v); if (h) { if (narrow) { GD.open = false; gdRender(); } startReplay(h, null, null, { ctx: 'Récap de séance' }); } return; }
+            if (a === 'pre') { rcPreTrain(b.dataset.v, b.dataset.d); if (narrow) { GD.open = false; gdRender(); } return; }
+            if (a === 'post') { gdLab('train'); setTimeout(() => { try { labStart('rc'); } catch (x) { } }, 120); if (narrow) { GD.open = false; gdRender(); } return; }
+            if (a === 'tree') { const D = rcData(hero, RC.i), t = D && D.tree; if (!t || t === 'none') return; TRL.spot = t.sp.k; TRL.role = t.role; TRL.dep = 'all'; TRL.fam = 'all'; TRL.ref = 'f'; TRL.path = t.c.n.k ? t.c.n.k.split('/') : []; gdLab('tree'); if (narrow) { GD.open = false; gdRender(); } return; }
+        });
+        // après un import : proposer le récap quand une nouvelle séance apparaît
+        function rcToast(D) {
+            let t = document.getElementById('rcToast'); if (!t) { t = document.createElement('div'); t.id = 'rcToast'; t.className = 'fixed z-[59] bottom-20 left-4 max-w-[340px] rounded-2xl bg-slate-900 border border-indigo-500/50 shadow-2xl shadow-black/50 p-3'; document.body.appendChild(t); }
+            t.innerHTML = `<div class="text-sm font-bold text-slate-100">🧾 Le récap de ta séance est prêt</div><div class="text-xs text-slate-400 mt-0.5">${D.sp.length} spins · ${rcBB(D.net)} en jetons · ${rcBB(D.luck)} de chance aux all-in</div><div class="flex gap-2 mt-2"><button data-rct="open" class="flex-1 min-h-[44px] rounded-xl bg-indigo-600 text-white text-sm font-bold">Voir le récap</button><button data-rct="x" class="min-h-[44px] px-3 rounded-xl bg-slate-800 text-slate-300 text-sm">Plus tard</button></div>`;
+            t.classList.remove('hidden'); clearTimeout(RC.toast); RC.toast = setTimeout(() => t.classList.add('hidden'), 30000);
+        }
+        document.addEventListener('click', e => { const b = e.target.closest('[data-rct]'); if (!b) return; document.getElementById('rcToast').classList.add('hidden'); if (b.dataset.rct === 'open') { RC.i = 0; RC.ai = ''; GD.open = true; GD.view = 'rc'; gdRender(); } });
+        { let tm = null; const _ta = triggerAnalysis; triggerAnalysis = function () { const r = _ta.apply(this, arguments); clearTimeout(tm);
+            tm = setTimeout(() => { try { const hero = playerSelect.value; if (!hero) return; const S = rcSessions(hero), s = S[S.length - 1]; if (!s || s.H.length < 20) return; const k = hero + '|' + s.t0, seen = localStorage.getItem('rc_seen');
+                if (seen === k) return; localStorage.setItem('rc_seen', k); RC.i = 0; const D = rcData(hero, 0); if (D) rcToast(D); } catch (e) { console.error('rc', e); } }, 10000); return r; }; }
+
+        // ===================== 97. MATRICE & FAMILLES DE FLOP (tes solves GTO+) =====================
+        // Tes flops solvés sont regroupés par famille ; chaque flop pèse selon le nombre de flops réels qu'il représente (le plus proche dans sa famille).
+        const FX = { node: null, dep: null, fam: 'all', view: 'cls', flop: null, cell: null, quiz: null, rb: null };
+        const FX_CL = [['nuts', 'Quinte, couleur, full, carré'], ['set', 'Brelan'], ['twop', 'Deux paires'], ['ovp', 'Overpair'], ['tpgk', 'Top paire bon kicker'], ['tpwk', 'Top paire petit kicker'], ['mid', 'Paire moyenne'], ['low', 'Petite paire'], ['combo', 'Tirage combo / paire + tirage'], ['fd', 'Tirage couleur'], ['oesd', 'Quinte ouverte'], ['gut', 'Ventrale'], ['ovc', 'Deux overcards'], ['bd', 'Backdoor couleur'], ['air', 'Air']];
+        const FX_CLL = Object.fromEntries(FX_CL), FX_STRONG = ['nuts', 'set', 'twop'], FX_TPP = ['nuts', 'set', 'twop', 'ovp', 'tpgk', 'tpwk'];
+        const fxRv = c => TX_RK.indexOf(c[0]);
+        function fxSt5(S) { for (let lo = -1; lo <= 8; lo++) { let ok = true; for (let k = 0; k < 5; k++) if (!S.has(lo + k)) { ok = false; break; } if (ok) return true; } return false; }
+        // type de main précis (2 cartes + flop)
+        function fxCls(H, B) {
+            const A = [...H, ...B], cnt = {}, sc = {}; A.forEach(c => { const r = fxRv(c); cnt[r] = (cnt[r] || 0) + 1; sc[c[1]] = (sc[c[1]] || 0) + 1; });
+            const hr = H.map(fxRv), br = B.map(fxRv), bu = [...new Set(br)].sort((a, b) => b - a), rs = new Set(A.map(fxRv)); if (rs.has(12)) rs.add(-1);
+            const v = Object.values(cnt), mx = Math.max(...v), trips = Object.keys(cnt).filter(r => cnt[r] >= 3).map(Number), prs = Object.keys(cnt).filter(r => cnt[r] === 2).map(Number);
+            if (Object.values(sc).some(x => x >= 5) || fxSt5(rs) || mx === 4 || (trips.length && prs.length)) return 'nuts';
+            if (trips.length && hr.includes(trips[0])) return 'set';
+            const pp = hr[0] === hr[1], hp = [...new Set(hr.filter(r => br.includes(r)))];
+            let made = null;
+            if (hp.length === 2) return 'twop';
+            if (pp && !br.includes(hr[0])) made = hr[0] > bu[0] ? 'ovp' : hr[0] > (bu.length > 1 ? bu[1] : -1) ? 'mid' : 'low';
+            else if (hp.length === 1 && !trips.length) { const x = hp[0], k = hr[0] === x ? hr[1] : hr[0]; made = x === bu[0] ? (k >= 9 ? 'tpgk' : 'tpwk') : x === bu[1] ? 'mid' : 'low'; }
+            const fd = Object.keys(sc).some(s => sc[s] === 4 && H.some(c => c[1] === s)); let outs = 0;
+            for (let r = 0; r < 13; r++) { if (rs.has(r)) continue; const S2 = new Set(rs); S2.add(r); if (r === 12) S2.add(-1); if (fxSt5(S2)) outs++; }
+            const oesd = outs >= 2, gut = outs === 1;
+            if (made) return (made === 'mid' || made === 'low') && (fd || oesd) ? 'combo' : made;
+            if (fd && (oesd || gut)) return 'combo'; if (fd) return 'fd'; if (oesd) return 'oesd'; if (gut) return 'gut';
+            if (hr[0] > bu[0] && hr[1] > bu[0]) return 'ovc';
+            if (Object.keys(sc).some(s => sc[s] === 3 && H.some(c => c[1] === s))) return 'bd';
+            return 'air';
+        }
+        const fxLab = (a, R) => { const g = gtpGrp(a); if (g === 'x') return 'Check'; if (g === 'f') return 'Couche'; if (g === 'c') return 'Paie'; return gtpLab(a, R); };
+        const fxCol = l => /^Couche/.test(l) ? '#64748b' : /^Check/.test(l) ? '#0ea5e9' : /^Paie/.test(l) ? '#10b981' : /^Tapis/.test(l) ? '#e11d48' : /^Relance/.test(l) ? '#f97316' : '#f59e0b';
+        const fxAgg = l => !/^(Check|Couche|Paie)/.test(l);
+        const fxPc = x => Math.round(100 * x) + ' %';
+        // ---- nœuds et profondeurs disponibles ----
+        const fxRecsAll = () => Object.values(GTP).filter(R => R.type === 'hand' && R.tree === 'HULIMP' && R.flop);
+        const fxNodeK = R => R.role + '|' + R.kind + '|' + (R.kind === 'bet' ? R.par : R.kind === 'xr' ? R.par.to : 0);
+        const FX_NL = { 'BB|first': 'BB parle en premier', 'SB|x': 'BB checke → SB', 'BB|bet': 'SB mise → BB', 'SB|xr': 'BB check-raise → SB', 'SB|bet': 'BB mise → SB' };
+        const fxNodeLab = k => { const [r, kd, p] = k.split('|'); return (FX_NL[r + '|' + kd] || k) + (kd === 'bet' ? ` ${String(p).replace('.', ',')} BB` : kd === 'xr' ? ` à ${String(p).replace('.', ',')} BB` : ''); };
+        function fxNodes() { const o = {}; fxRecsAll().forEach(R => { const k = fxNodeK(R); (o[k] = o[k] || new Set()).add(R.depth); }); const ord = ['BB|first', 'SB|x', 'BB|bet', 'SB|xr', 'SB|bet'];
+            return Object.keys(o).sort((a, b) => ord.indexOf(a.split('|').slice(0, 2).join('|')) - ord.indexOf(b.split('|').slice(0, 2).join('|'))).map(k => ({ k, deps: [...o[k]].sort((a, b) => a - b) })); }
+        const fxRecs = (nk, dep) => fxRecsAll().filter(R => fxNodeK(R) === nk && R.depth === dep);
+        // ---- un flop solvé : stratégie, EV, équité par type de main ----
+        const _fxR = new Map();
+        function fxRec(R) { const key = gtpNodeK(R) + R.flop.join('') + R.C.length; if (_fxR.has(key)) return _fxR.get(key);
+            const n = R.acts.length, L = R.acts.map(a => fxLab(a, R)), S = {}, tot = { w: 0, f: {}, e: {}, q: 0, qw: 0 };
+            R.C.forEach((c, i) => { const w = R.W[i]; if (!w) return; const k = fxCls([c.slice(0, 2), c.slice(2)], R.flop), o = S[k] || (S[k] = { w: 0, f: {}, e: {}, q: 0, qw: 0 });
+                [o, tot].forEach(z => { z.w += w; for (let j = 0; j < n; j++) { z.f[L[j]] = (z.f[L[j]] || 0) + w * R.F[i * n + j]; z.e[L[j]] = (z.e[L[j]] || 0) + w * R.E[i * n + j]; } if (R.Q) { z.q += w * R.Q[i]; z.qw += w; } }); });
+            const out = { R, L: [...new Set(L)], S, tot }; _fxR.set(key, out); return out; }
+        // ---- poids des flops : combien de flops réels chacun représente ----
+        let _fxAllF = null;
+        function fxAllFlops() { if (_fxAllF) return _fxAllF; const D = MP_DECK, sig = {};
+            for (let i = 0; i < 52; i++) for (let j = i + 1; j < 52; j++) for (let k = j + 1; k < 52; k++) { const f = [D[i], D[j], D[k]].sort((a, b) => fxRv(b) - fxRv(a)), m = {}; let t = 0; const ss = f.map(c => m[c[1]] || (m[c[1]] = 'abcd'[t++]));
+                const key = f.map(c => c[0]).join('') + ss.join(''); const o = sig[key] || (sig[key] = { f, n: 0, fam: txFamOf3(f) }); o.n++; }
+            return _fxAllF = Object.values(sig); }
+        const _fxW = new Map();
+        function fxWeights(L) { const key = L.map(R => R.flop.join('')).sort().join(','); if (_fxW.has(key)) return _fxW.get(key); const W = new Map(L.map(R => [R, 0])), byF = {};
+            L.forEach(R => { const f = txFamOf3(R.flop); (byF[f] = byF[f] || []).push(R); });
+            fxAllFlops().forEach(o => { const C = byF[o.fam]; if (!C) return; let b = C[0], bd = 1e9; if (C.length > 1) C.forEach(R => { const d = gtpDist(o.f, R.flop); if (d < bd) { bd = d; b = R; } }); W.set(b, W.get(b) + o.n); });
+            _fxW.set(key, W); return W; }
+        // ---- agrégat d'une famille (ou de tous les flops) ----
+        function fxFam(L, fam) { const W = fxWeights(L), F = L.filter(R => fam === 'all' || txFamOf3(R.flop) === fam); if (!F.length) return null;
+            const S = {}, tot = { w: 0, f: {}, e: {}, q: 0, qw: 0 }, per = {}, labs = new Set();
+            F.forEach(R => { const X = fxRec(R), wf = W.get(R) || 1, tw = X.tot.w || 1; X.L.forEach(l => labs.add(l));
+                const add = (z, o) => { const k = wf / tw; z.w += k * o.w; Object.keys(o.f).forEach(l => { z.f[l] = (z.f[l] || 0) + k * o.f[l]; z.e[l] = (z.e[l] || 0) + k * o.e[l]; }); z.q += k * o.q; z.qw += k * o.qw; };
+                add(tot, X.tot); Object.entries(X.S).forEach(([c, o]) => { add(S[c] || (S[c] = { w: 0, f: {}, e: {}, q: 0, qw: 0 }), o); (per[c] = per[c] || []).push({ wf, a: Object.keys(o.f).filter(fxAgg).reduce((s, l) => s + o.f[l], 0) / o.w }); }); });
+            const norm = z => ({ w: z.w, f: Object.fromEntries(Object.entries(z.f).map(([l, v]) => [l, v / z.w])), e: Object.fromEntries(Object.entries(z.e).map(([l, v]) => [l, v / z.w])), q: z.qw ? z.q / z.qw : null });
+            const out = { F, labs: [...labs], tot: norm(tot), S: {} }; Object.entries(S).forEach(([c, z]) => { out.S[c] = { ...norm(z), share: z.w / tot.w }; });
+            // homogénéité : écart-type, entre flops, de la fréquence d'agression de chaque type de main
+            let hs = 0, hw = 0; Object.entries(per).forEach(([c, A]) => { if (A.length < 2 || !out.S[c] || out.S[c].share < .03) return; const sw = A.reduce((s, x) => s + x.wf, 0), m = A.reduce((s, x) => s + x.wf * x.a, 0) / sw, sd = Math.sqrt(A.reduce((s, x) => s + x.wf * (x.a - m) ** 2, 0) / sw); hs += out.S[c].share * sd; hw += out.S[c].share; });
+            out.hom = hw ? hs / hw : null; return out; }
+        const fxHomLab = h => h == null ? { t: '1 seul flop', c: 'text-slate-400' } : h < .15 ? { t: 'homogène', c: 'text-emerald-300' } : h < .25 ? { t: 'assez homogène', c: 'text-amber-300' } : { t: 'hétérogène', c: 'text-rose-300' };
+        // ---- tes décisions réelles à ce nœud ----
+        function fxHero(hero, nk, dep, fam, A) { let J = []; try { J = gtpJudge(hero).L; } catch (e) { } const out = {}; let n = 0, loss = 0;
+            J.forEach(x => { if (fxNodeK(x.R) !== nk || x.R.depth !== dep) return; if (fam !== 'all' && txFamOf3(x.board) !== fam) return; const c = fxCls(x.hc.split(' '), x.board), l = fxLab(x.R.acts[x.j], x.R), o = out[c] || (out[c] = { n: 0, c: {}, loss: 0, ids: [] });
+                o.n++; o.c[l] = (o.c[l] || 0) + 1; o.ids.push(x.h.id); n++; const s = A && A.S[c]; if (s && s.e[l] != null) { const b = Math.max(...Object.values(s.e)), d = Math.max(0, b - s.e[l]); o.loss += d; loss += d; } });
+            return { S: out, n, loss }; }
+        // ---- range adverse au même flop (pour l'avantage de range) ----
+        function fxOpp(R) { const same = (role, kind, test) => Object.values(GTP).find(Q => Q.type === 'hand' && Q.tree === R.tree && Q.depth === R.depth && Q.flop && Q.flop.join('') === R.flop.join('') && Q.role === role && Q.kind === kind && (!test || test(Q)));
+            const pick = (Q, g) => { if (!Q) return null; const n = Q.acts.length, J = Q.acts.map((a, j) => g(a) ? j : -1).filter(j => j >= 0); if (!J.length) return null; return { Q, w: i => J.reduce((s, j) => s + Q.F[i * n + j], 0) * Q.W[i] }; };
+            if (R.kind === 'x') return pick(same('BB', 'first'), a => gtpGrp(a) === 'x');
+            if (R.kind === 'first') { const Q = same('SB', 'x'); return Q ? { Q, w: i => Q.W[i] } : null; }
+            if (R.kind === 'bet' && R.role === 'BB') return pick(same('SB', 'x'), a => gtpGrp(a) === 'b' && Math.abs(gtpNum((a.match(/[\d.,]+/) || [0])[0]) - R.par) < .3);
+            if (R.kind === 'bet' && R.role === 'SB') return pick(same('BB', 'first'), a => gtpGrp(a) === 'b' && Math.abs(gtpNum((a.match(/[\d.,]+/) || [0])[0]) - R.par) < .3);
+            if (R.kind === 'xr') return pick(same('BB', 'bet', Q => Math.abs(Q.par - R.par.b) < .3), a => gtpGrp(a) === 'r' && Math.abs(gtpNum((a.match(/[\d.,]+/) || [0])[0]) - R.par.to) < .3);
+            return null; }
+        function fxAdv(F, W) { const me = {}, op = {}; let tm = 0, to = 0, eq = 0, eqw = 0, ok = 0;
+            F.forEach(R => { const wf = W.get(R) || 1, O = fxOpp(R), X = fxRec(R); if (!O) return; ok++; const tw = X.tot.w || 1; Object.entries(X.S).forEach(([c, o]) => me[c] = (me[c] || 0) + wf * o.w / tw); tm += wf;
+                if (X.tot.q != null && X.tot.qw) { eq += wf * X.tot.q / X.tot.qw; eqw += wf; }
+                const ok2 = gtpNodeK(R) + R.flop.join('') + '|opp'; let oc, ow; if (_fxR.has(ok2)) ({ oc, ow } = _fxR.get(ok2)); else { oc = {}; ow = 0; O.Q.C.forEach((c, i) => { const w = O.w(i); if (!w) return; const k = fxCls([c.slice(0, 2), c.slice(2)], R.flop); oc[k] = (oc[k] || 0) + w; ow += w; }); _fxR.set(ok2, { oc, ow }); } if (ow) { Object.entries(oc).forEach(([k, v]) => op[k] = (op[k] || 0) + wf * v / ow); to += wf; } });
+            if (!ok || !tm || !to) return null; const sh = (o, t, L) => L.reduce((s, k) => s + (o[k] || 0), 0) / t;
+            return { n: ok, eq: eqw ? eq / eqw : null, strong: [sh(me, tm, FX_STRONG), sh(op, to, FX_STRONG)], tpp: [sh(me, tm, FX_TPP), sh(op, to, FX_TPP)], air: [sh(me, tm, ['air', 'bd', 'ovc', 'gut']), sh(op, to, ['air', 'bd', 'ovc', 'gut'])] }; }
+        function fxAdvTxt(adv, r, opp, A) { const d = adv.strong[0] - adv.strong[1], t = adv.tpp[0] - adv.tpp[1], sF = d > .02 ? r : d < -.02 ? opp : null, tF = t > .04 ? r : t < -.04 ? opp : null, eF = adv.eq == null ? null : adv.eq > .53 ? r : adv.eq < .47 ? opp : null;
+            let s; if (!sF && !tF) s = `Pas d'avantage net : les deux ranges se ressemblent${eF ? ` (équité un peu en faveur de ${eF})` : ''}.`;
+            else if (sF && tF && sF !== tF) s = `Avantage partagé : <b>${sF}</b> a plus de mains très fortes, <b>${tF}</b> plus de top paires et mieux.`;
+            else { const w = sF || tF; s = `<b>${w}</b> a l'avantage : ${sF && tF ? 'plus de mains très fortes et plus de top paires et mieux' : sF ? 'plus de mains très fortes (avantage de nuts)' : 'plus de top paires et mieux'}${eF === w ? ', et plus d\'équité' : ''}.`; }
+            const ag = A.labs.filter(fxAgg).reduce((x, l) => x + (A.tot.f[l] || 0), 0), favR = (sF === r || tF === r) && sF !== opp && tF !== opp, favO = (sF === opp || tF === opp) && sF !== r && tF !== r;
+            const k = ag >= .5 ? `Ton solveur fait miser ${r} ${fxPc(ag)} ici : ${favR ? 'c\'est cet avantage qui le permet.' : favO ? 'malgré l\'avantage adverse, surtout avec une petite mise.' : 'avec une petite mise, sans gros avantage.'}` : ag <= .3 ? `${r} checke surtout ici (${fxPc(1 - ag)}) : ${favO ? 'normal, l\'avantage est en face.' : favR ? 'son avantage est trop faible pour miser souvent.' : 'aucun des deux n\'a un avantage net.'}` : `${r} mélange mise (${fxPc(ag)}) et check.`;
+            return s + ' ' + k; }
+        // ---- règles simples d'une famille ----
+        function fxRules(A) { const labs = A.labs.filter(l => (A.tot.f[l] || 0) >= .05).sort((a, b) => (A.tot.f[b] || 0) - (A.tot.f[a] || 0)), cls = FX_CL.map(x => x[0]).filter(c => A.S[c] && A.S[c].share >= .02);
+            return labs.map(l => { const hi = cls.filter(c => (A.S[c].f[l] || 0) >= .7), mid = cls.filter(c => { const v = A.S[c].f[l] || 0; return v >= .3 && v < .7; });
+                return { l, p: A.tot.f[l], hi, mid, few: !hi.length && !mid.length }; }); }
+        const fxRuleTxt = (r, short) => `<b style="color:${fxCol(r.l)}">${esc(r.l)} ${fxPc(r.p)}</b>${r.few ? ' : un peu, en mélange, sur la plupart des mains' : ''}${r.hi.length ? ` : ${short ? '' : 'surtout '}${r.hi.slice(0, short ? 3 : 8).map(c => FX_CLL[c].toLowerCase()).join(', ')}` : ''}${r.mid.length && !short ? `${r.hi.length ? ' ; ' : ' : '}en mélange ${r.mid.slice(0, 6).map(c => FX_CLL[c].toLowerCase()).join(', ')}` : ''}.`;
+        const fxBar = (f, labs, h = 'h-2.5') => `<div class="flex ${h} rounded overflow-hidden bg-slate-800">${labs.filter(l => (f[l] || 0) > .004).map(l => `<div style="width:${100 * f[l]}%;background:${fxCol(l)}" title="${esc(l)} ${fxPc(f[l])}"></div>`).join('')}</div>`;
+        // ---- exploit : le field contre ton solveur ----
+        const _fxEx = new Map();
+        function fxExploit(hero, dep, fam) { const ck = [hero, allParsedHands.length, Object.keys(GTP).length, dep, fam].join('|'); if (_fxEx.has(ck)) return _fxEx.get(ck); if (!TRL.ix || TRL.ix.key !== hero + '|' + allParsedHands.length) return null;
+            setTimeout(() => { if (_fxEx.has(ck)) return; const r = fxExploit0(hero, dep, fam); _fxEx.set(ck, r); if (LAB.seg === 'mx' && FX.view === 'sheet') labRender(); }, 40); return 'wait'; }
+        function fxExploit0(hero, dep, fam) { const ix = TRL.ix; if (!ix || ix.key !== hero + '|' + allParsedHands.length) return null; const sp = Object.values(ix.S).find(s => s.k.startsWith('HU|L')); if (!sp) return null;
+            const N = fxNodes(), gto = (role, kind, g) => { const nd = N.filter(x => x.k.startsWith(role + '|' + kind + '|')); let s = 0, w = 0; nd.forEach(x => { const d = x.deps.reduce((a, b) => Math.abs(b - dep) < Math.abs(a - dep) ? b : a, x.deps[0]), A = fxFam(fxRecs(x.k, d), fam); if (!A) return; const v = A.labs.filter(g).reduce((t, l) => t + (A.tot.f[l] || 0), 0); s += v; w++; }); return w ? s / w : null; };
+            _trNoSol = true; let tI, tO; try { tI = trTree(ix, hero, sp.k, 'I', 'all', 'f', fam); tO = trTree(ix, hero, sp.k, 'O', 'all', 'f', fam); } finally { _trNoSol = false; } const fr = (n, g) => { if (!n || n.me.n < 1) return null; const k = Object.keys(n.me.c).filter(g).reduce((s, t) => s + n.me.c[t], 0); return { p: k / n.me.n, n: n.me.n }; };
+            const bets = t => t[0] === 'b', faceBet = (() => { const z = { me: { n: 0, c: {} } }; tI.N.forEach(n => { if (/^F\.x\/F\.b\d$/.test(n.k)) { z.me.n += n.me.n; Object.entries(n.me.c).forEach(([t, v]) => z.me.c[t] = (z.me.c[t] || 0) + v); } }); return z; })();
+            const R = [
+                { q: 'BB mise en premier (donk) contre toi', fd: fr(tI.N.get(''), bets), g: gto('BB', 'first', fxAgg), up: 'Ils donkent plus que ton solveur : leur range de mise est plus faible, défends et relance plus (SB contre mise de BB).', dn: 'Ils donkent peu : quand ils le font, respecte leur mise (range plus forte que GTO).' },
+                { q: 'SB mise quand tu checkes (BB)', fd: fr(tO.N.get('F.x'), bets), g: gto('SB', 'x', fxAgg), up: 'Ils misent plus que ton solveur : paie et check-raise plus souvent, leur range de mise est plus faible.', dn: 'Ils misent moins que ton solveur : leurs mises sont plus fortes, couche plus tes mains limites face à elles. Et comme ils checkent souvent derrière, tes mains moyennes voient la turn gratuitement : mise plus fin en valeur à la turn.' },
+                { q: 'BB couche face à ta mise', fd: fr(faceBet, t => t === 'f'), g: gto('BB', 'bet', l => /^Couche/.test(l)), up: 'Ils couchent trop : mise toutes les mains que ton solveur mise parfois (types en mélange), et ajoute de l\'air.', dn: 'Ils ne couchent pas assez : bluffe moins, mise plus fin pour la value (top paire petit kicker, paires moyennes).' },
+                { q: 'BB check-raise ta mise', fd: fr(faceBet, t => t === 'r' || t === 'ra'), g: gto('BB', 'bet', l => /^(Relance|Tapis)/.test(l)), up: 'Ils check-raisent plus que ton solveur : paie plus souvent leurs relances avec tes tirages et tes top paires.', dn: 'Ils check-raisent peu : leurs relances sont fortes, couche plus souvent tes mains moyennes.' }];
+            return { sp, R: R.filter(x => x.fd && x.g != null) }; }
+        // ---- vues ----
+        function fxHtml(hero) {
+            const N = fxNodes(); if (!N.length) return `<div class="text-sm text-slate-300">Importe tes fichiers GTO+ (pots limpés HU, rapports « Hand ») dans <b>🗂 Spots à solver</b> : cette page les regroupe par famille de flop.</div>`;
+            if (!FX.node || !N.some(x => x.k === FX.node)) FX.node = (N.find(x => x.k.startsWith('SB|x')) || N[0]).k; const nd = N.find(x => x.k === FX.node); if (!nd.deps.includes(FX.dep)) FX.dep = nd.deps[nd.deps.length - 1];
+            const L = fxRecs(FX.node, FX.dep), famN = {}; L.forEach(R => { const f = txFamOf3(R.flop); famN[f] = (famN[f] || 0) + 1; }); if (FX.fam !== 'all' && !famN[FX.fam]) FX.fam = 'all';
+            const chip = (a, v, l, on) => `<button data-fx="${a}" data-v="${esc(v)}" class="shrink-0 min-h-[44px] px-3 rounded-xl text-xs font-bold ${on ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`;
+            const head = `<div class="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">${N.map(x => chip('node', x.k, esc(fxNodeLab(x.k)), x.k === FX.node)).join('')}</div>
+                <div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="text-[10px] uppercase text-slate-400 font-bold">Profondeur</span>${nd.deps.map(d => chip('dep', d, d + ' BB', d === FX.dep)).join('')}</div>
+                <div class="flex gap-1.5 overflow-x-auto pb-1 mt-2 custom-scrollbar items-center"><span class="shrink-0 text-[10px] uppercase text-slate-400 font-bold">Famille</span>${chip('fam', 'all', `Tous <span class="opacity-60 font-normal">${L.length}</span>`, FX.fam === 'all')}${TXFAM.map(f => chip('fam', f.k, `${esc(f.l)} <span class="opacity-60 font-normal">${famN[f.k] || 0}</span>`, FX.fam === f.k)).join('')}</div>
+                <div class="grid grid-cols-4 gap-1.5 mt-2">${[['cls', '📊 Par type de main'], ['mx', '🧩 Matrice d\'un flop'], ['sheet', '📋 Fiche'], ['ex', '🎯 Exercices']].map(([v, l]) => `<button data-fx="view" data-v="${v}" class="min-h-[48px] rounded-xl text-sm font-bold ${FX.view === v ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('')}</div>`;
+            const A = fxFam(L, FX.fam); if (!A) return head + '<div class="text-sm text-slate-400 mt-3">Aucun flop solvé dans cette famille pour ce nœud et cette profondeur.</div>';
+            let body = ''; try { body = FX.view === 'mx' ? fxMxHtml(hero, A) : FX.view === 'sheet' ? fxSheetHtml(hero, A, L) : FX.view === 'ex' ? fxExHtml(hero, A, L) : fxClsHtml(hero, A); } catch (e) { console.error('fx', e); body = '<div class="text-rose-300 text-sm">Erreur d\'affichage.</div>'; }
+            return head + `<div class="mt-3">${body}</div>`;
+        }
+        function fxClsHtml(hero, A) {
+            const H = fxHero(hero, FX.node, FX.dep, FX.fam, A), hom = fxHomLab(A.hom), labs = A.labs.sort((a, b) => gtpOrd(a) - gtpOrd(b));
+            const rows = FX_CL.filter(([c]) => (A.S[c] && A.S[c].share >= .005) || H.S[c]).map(([c, nm]) => { const s = A.S[c], h = H.S[c];
+                const hf = h ? Object.fromEntries(Object.entries(h.c).map(([l, v]) => [l, v / h.n])) : null, ag = f => Object.keys(f || {}).filter(fxAgg).reduce((t, l) => t + f[l], 0), gap = s && hf ? ag(hf) - ag(s.f) : null, sure = h && h.n >= 15;
+                const top = s ? labs.filter(l => (s.f[l] || 0) >= .1).map(l => `${esc(l)} ${fxPc(s.f[l])}`).join(' · ') : '–';
+                return `<div class="rounded-xl bg-slate-900 border border-white/10 p-2.5"><div class="flex items-baseline justify-between gap-2"><b class="text-sm">${nm}</b><span class="text-[11px] text-slate-400">${s ? fxPc(s.share) + ' de la range' : 'hors range du solve'}</span></div>
+                    <div class="grid grid-cols-[52px_1fr] gap-x-2 gap-y-1 items-center mt-1.5 text-[11px]"><span class="text-slate-400">Solveur</span>${s ? fxBar(s.f, labs) : '<span></span>'}<span></span><span class="text-slate-300">${top}</span>
+                    <span class="text-slate-400">Toi</span>${hf ? fxBar(hf, labs) : '<span class="text-slate-600">pas encore de main</span>'}${hf ? `<span></span><span class="text-slate-300">${h.n} main${h.n > 1 ? 's' : ''} ${relDot(h.n)} · ${labs.filter(l => hf[l]).map(l => `${esc(l)} ${fxPc(hf[l])}`).join(' · ')}${gap != null && Math.abs(gap) >= .12 ? ` · <b class="${sure ? (gap > 0 ? 'text-rose-300' : 'text-sky-300') : 'text-slate-400'}">${gap > 0 ? 'plus agressif' : 'moins agressif'} (${gap > 0 ? '+' : ''}${Math.round(100 * gap)} pts)</b>` : ''}${h.loss > .05 ? ` · <span class="text-rose-300">${simF1(-h.loss)} BB estimés</span>` : ''}</span>` : ''}</div></div>`; }).join('');
+            const ranked = Object.entries(H.S).filter(([c, h]) => h.n >= 8 && h.loss > 0).sort((a, b) => b[1].loss - a[1].loss).slice(0, 3);
+            return `<div class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-slate-300 mb-2"><span>${A.F.length} flop${A.F.length > 1 ? 's' : ''} solvé${A.F.length > 1 ? 's' : ''} · <b class="${hom.c}">${hom.t}</b></span><span>Toute la range : ${labs.filter(l => A.tot.f[l] > .005).map(l => `<b style="color:${fxCol(l)}">${esc(l)} ${fxPc(A.tot.f[l])}</b>`).join(' · ')}</span><span>${H.n} de tes décisions ici${H.n ? ` · ${simF1(100 * H.loss / H.n)} BB / 100 décisions perdues (estimé)` : ''}</span></div>
+                ${ranked.length ? `<div class="rounded-xl bg-rose-950/40 border border-rose-500/30 p-2.5 text-sm mb-2">💸 Ce qui te coûte le plus ici : ${ranked.map(([c, h]) => `<b>${FX_CLL[c]}</b> (${simF1(-h.loss)} BB sur ${h.n} mains)`).join(' · ')}</div>` : ''}
+                <div class="grid gap-1.5 md:grid-cols-2">${rows}</div>
+                <div class="text-[11px] text-slate-500 mt-2">Solveur : moyenne de tes flops solvés${FX.fam === 'all' ? '' : ' de la famille'}, chaque flop pesant selon le nombre de flops réels qu'il représente. Toi : tes vraies décisions à ce nœud, à ${FX.dep} BB. EV perdue estimée avec l'EV moyenne de ton solveur pour ce type de main (exacte seulement sur un flop identique). Plus agressif = tu mises ou relances plus que ton solveur.</div>`;
+        }
+        // matrice 13×13 d'un flop solvé
+        function fxCell(R, ci) { const n = R.acts.length, L = R.acts.map(a => fxLab(a, R)), out = { w: 0, k: 0, f: {}, e: {}, combos: [] }, idx = R._ix || (R._ix = new Map(R.C.map((c, i) => [c, i])));
+            cellCombos(ci).forEach(([x, y]) => { const a = MP_DECK[x], b = MP_DECK[y]; if (R.flop.includes(a) || R.flop.includes(b)) return; out.k++; const i = idx.has(a + b) ? idx.get(a + b) : idx.get(b + a); if (i == null) return; const w = R.W[i]; const cf = {}, ce = {};
+                for (let j = 0; j < n; j++) { cf[L[j]] = (cf[L[j]] || 0) + R.F[i * n + j]; ce[L[j]] = Math.max(ce[L[j]] == null ? -1e9 : ce[L[j]], R.E[i * n + j]); } out.combos.push({ c: a + ' ' + b, w, f: cf, e: ce }); if (!w) return; out.w += w; Object.keys(cf).forEach(l => out.f[l] = (out.f[l] || 0) + w * cf[l]); Object.keys(ce).forEach(l => out.e[l] = (out.e[l] || 0) + w * ce[l]); });
+            if (out.w) { Object.keys(out.f).forEach(l => out.f[l] /= out.w); Object.keys(out.e).forEach(l => out.e[l] /= out.w); } return out; }
+        function fxMyCells(hero, R) { const m = {}; let J = []; try { J = gtpJudge(hero).L; } catch (e) { } J.forEach(x => { if (x.R !== R || !x.exact) return; let ci; try { ci = cidx(cell(x.hc)); } catch (e) { return; } (m[ci] = m[ci] || []).push(x); }); return m; }
+        function fxGrid(R, cellHtml) { let g = ''; for (let ci = 0; ci < 169; ci++) g += cellHtml(ci); return `<div class="grid gap-[2px] w-full max-w-[600px]" style="grid-template-columns:repeat(13,minmax(0,1fr))">${g}</div>`; }
+        function fxMxHtml(hero, A) {
+            const F = A.F; if (!FX.flop || !F.some(R => R.flop.join('') === FX.flop)) FX.flop = F[0].flop.join(''); const R = F.find(R => R.flop.join('') === FX.flop), labs = fxRec(R).L.sort((a, b) => gtpOrd(a) - gtpOrd(b)), my = fxMyCells(hero, R);
+            const fl = `<div class="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar">${F.map(Q => `<button data-fx="flop" data-v="${Q.flop.join('')}" class="shrink-0 min-h-[44px] px-3 rounded-xl text-sm font-bold ${Q === R ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'}">${rcCards(Q.flop.join(' '))}</button>`).join('')}</div>`;
+            const C = []; for (let ci = 0; ci < 169; ci++) C.push(fxCell(R, ci)); const mw = Math.max(...C.map(x => x.k ? x.w / x.k : 0)) || 1;
+            const grid = fxGrid(R, ci => { const x = C[ci], op = x.k ? .25 + .75 * Math.min(1, (x.w / x.k) / mw) : 0; let bg = '#1e293b'; if (x.w) { let a = 0; bg = 'linear-gradient(90deg,' + labs.filter(l => x.f[l] > .004).map(l => { const s = a; a += 100 * x.f[l]; return `${fxCol(l)} ${s}% ${a}%`; }).join(',') + ')'; }
+                return `<button data-fx="cell" data-v="${ci}" class="relative aspect-square rounded-[3px] text-[9px] sm:text-[10px] font-bold leading-none flex items-center justify-center ${FX.cell === ci ? 'ring-2 ring-white z-10' : ''}" style="background:${bg};opacity:${x.w ? op : .35}"><span class="drop-shadow text-white">${cname(ci)}</span>${my[ci] ? `<span class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${my[ci].some(z => z.err) ? 'bg-rose-500' : 'bg-white'}"></span>` : ''}</button>`; });
+            let det = '<div class="text-sm text-slate-400">Touche une case pour voir le détail par combinaison.</div>';
+            if (FX.cell != null) { const x = C[FX.cell], m = my[FX.cell] || [];
+                det = `<div class="font-bold">${cname(FX.cell)} <span class="text-xs font-normal text-slate-400">${x.w ? `dans la range (${simF1(x.w)} combos)` : 'hors range à ce nœud'}</span></div>${x.w ? `<div class="mt-1">${fxBar(x.f, labs, 'h-3')}</div><div class="text-xs text-slate-300 mt-1">${labs.filter(l => x.f[l] > .004).map(l => `${esc(l)} ${fxPc(x.f[l])} <span class="text-slate-500">(EV ${labF1(x.e[l])})</span>`).join(' · ')}</div>` : ''}
+                    <table class="w-full text-[11px] mt-2"><tbody>${x.combos.filter(z => z.w).map(z => `<tr class="border-t border-white/5"><td class="py-1 pr-2">${rcCards(z.c)}</td><td class="pr-2 text-slate-400">${fxCLs(z.c, R.flop)}</td><td>${labs.filter(l => z.f[l] > .004).map(l => `<span style="color:${fxCol(l)}">${esc(l)} ${fxPc(z.f[l])}</span>`).join(' · ')}</td></tr>`).join('')}</tbody></table>
+                    ${m.length ? `<div class="text-xs text-slate-300 mt-2"><b>Tes mains ici :</b> ${m.map(z => `<button data-fx="replay" data-v="${esc(z.h.id)}" class="underline ${z.err ? 'text-rose-300' : 'text-emerald-300'}">${rcCards(z.hc)} : ${esc(fxLab(z.R.acts[z.j], z.R))}</button>`).join(' · ')}</div>` : ''}`; }
+            return `${fl}<div class="grid gap-3 mt-2 lg:grid-cols-[minmax(0,600px)_1fr]"><div>${grid}<div class="flex flex-wrap gap-3 text-[11px] text-slate-400 mt-2">${labs.map(l => `<span><span class="inline-block w-3 h-3 rounded-sm align-middle mr-1" style="background:${fxCol(l)}"></span>${esc(l)}</span>`).join('')}<span>· case pâle : peu de combos dans la range · point : ta main jouée (rouge = écart)</span></div></div><div class="rounded-xl bg-slate-900 border border-white/10 p-3">${det}</div></div>`;
+        }
+        const fxCLs = (c, b) => FX_CLL[fxCls(c.split(' '), b)];
+        // fiche de famille
+        function fxSheetHtml(hero, A, L) {
+            const W = fxWeights(L), hom = fxHomLab(A.hom), rules = fxRules(A), adv = fxAdv(A.F, W), famL = FX.fam === 'all' ? 'Tous les flops' : TXFK[FX.fam].l;
+            const advH = adv ? (() => { const [r] = FX.node.split('|'), opp = r === 'SB' ? 'BB' : 'SB', d = adv.strong[0] - adv.strong[1], t = adv.tpp[0] - adv.tpp[1];
+                return `<div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold text-sm mb-1">⚖️ Avantage de range <span class="text-xs font-normal text-slate-400">(${r} à ce nœud contre la range de ${opp})</span></div>
+                    <table class="w-full text-xs"><thead><tr class="text-[10px] uppercase text-slate-500"><th class="text-left"></th><th class="text-right">${r}</th><th class="text-right">${opp}</th></tr></thead><tbody>
+                    <tr class="border-t border-white/5"><td class="py-1">Mains très fortes (deux paires et +)</td><td class="text-right font-bold">${fxPc(adv.strong[0])}</td><td class="text-right">${fxPc(adv.strong[1])}</td></tr>
+                    <tr class="border-t border-white/5"><td class="py-1">Top paire et mieux</td><td class="text-right font-bold">${fxPc(adv.tpp[0])}</td><td class="text-right">${fxPc(adv.tpp[1])}</td></tr>
+                    <tr class="border-t border-white/5"><td class="py-1">Air et tirages faibles</td><td class="text-right font-bold">${fxPc(adv.air[0])}</td><td class="text-right">${fxPc(adv.air[1])}</td></tr>${adv.eq != null ? `<tr class="border-t border-white/5"><td class="py-1">Équité de la range de ${r}</td><td class="text-right font-bold">${fxPc(adv.eq)}</td><td class="text-right">${fxPc(1 - adv.eq)}</td></tr>` : ''}</tbody></table>
+                    <div class="text-sm text-slate-200 mt-2">${fxAdvTxt(adv, r, opp, A)}</div>
+                    <div class="text-[10.5px] text-slate-500 mt-1">Sur ${adv.n} flop${adv.n > 1 ? 's' : ''} où les deux fichiers existent.${adv.eq == null ? ' Équité : réimporte tes fichiers (la colonne « Equity » est lue depuis cette version).' : ''}</div></div>`; })() : `<div class="text-xs text-slate-500">Avantage de range : il faut aussi le fichier de l'adversaire au même flop (ex. « BB act first » pour « SB after BB check »).</div>`;
+            const cov = (() => { const th = txTheo(), c = {}; L.forEach(R => { const f = txFamOf3(R.flop); c[f] = (c[f] || 0) + 1; }); const tot = L.length || 1;
+                const rows = TXFAM.map(f => { const n = c[f.k] || 0, want = Math.max(1, Math.round(th[f.k] * Math.max(31, tot))), H = n >= 2 ? fxHomLab((fxFam(L, f.k) || {}).hom) : null; return { f, n, want, H }; });
+                const need = rows.filter(r => r.n < Math.min(3, r.want) || (r.H && r.H.t === 'hétérogène')).sort((a, b) => (a.n / a.want) - (b.n / b.want));
+                return `<div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold text-sm mb-1">🗂 Tes flops solvés par famille <span class="text-xs font-normal text-slate-400">(${fxNodeLab(FX.node)}, ${FX.dep} BB)</span></div>
+                    <div class="space-y-1">${rows.map(r => `<div class="grid grid-cols-[1fr_auto] items-center gap-2 text-xs"><div><div class="flex justify-between"><span>${esc(r.f.l)}</span><span class="text-slate-400">${r.n} / ${r.want} conseillé${r.H ? ` · <span class="${r.H.c}">${r.H.t}</span>` : ''}</span></div><div class="h-1.5 rounded bg-slate-800 mt-0.5 overflow-hidden"><div class="h-full ${r.n >= r.want ? 'bg-emerald-500' : 'bg-amber-500'}" style="width:${Math.min(100, 100 * r.n / r.want)}%"></div></div></div></div>`).join('')}</div>
+                    <div class="text-xs text-slate-300 mt-2">${need.length ? `À solver en priorité : ${need.slice(0, 3).map(r => `<b>${esc(r.f.l)}</b> (${r.n === 0 ? 'aucun flop' : r.H && r.H.t === 'hétérogène' ? 'flops trop différents entre eux' : 'trop peu de flops'} ; ex. ${r.f.ex.join(', ')})`).join(' · ')}.` : 'Couverture équilibrée.'}</div><div class="text-[10.5px] text-slate-500 mt-1">« Conseillé » : la part réelle de chaque famille parmi tous les flops possibles, rapportée à 31 flops.</div></div>`; })();
+            const mis = (() => { const N = fxNodes().filter(x => x.deps.includes(FX.dep)); if (N.length < 2) return ''; const by = {}; N.forEach(x => fxRecs(x.k, FX.dep).forEach(R => { const k = R.flop.join(''); (by[k] = by[k] || new Set()).add(x.k); }));
+                const bad = Object.entries(by).filter(([, s]) => s.size < N.length); if (!bad.length) return '';
+                const rk = k => k.match(/../g).map(c => c[0]).sort().join(''), items = bad.map(([k, s]) => { const twin = bad.find(([k2, s2]) => k2 !== k && rk(k2) === rk(k) && [...s2].every(x => !s.has(x))); return { k, s, twin: twin && twin[0] }; });
+                const seen = new Set(), rows = items.filter(x => { if (seen.has(x.k)) return false; seen.add(x.k); if (x.twin) seen.add(x.twin); return true; }).map(x => x.twin ? `<li><b>${rcCards(x.k.match(/../g).join(' '))}</b> et <b>${rcCards(x.twin.match(/../g).join(' '))}</b> : mêmes hauteurs, couleurs différentes selon le nœud. Sûrement une faute de frappe dans un nom de fichier (${[...x.s].map(fxNodeLab).join(', ')} d'un côté ; ${[...(by[x.twin] || [])].map(fxNodeLab).join(', ')} de l'autre).</li>` : `<li><b>${rcCards(x.k.match(/../g).join(' '))}</b> : présent dans ${[...x.s].map(fxNodeLab).join(', ')} ; absent de ${N.filter(n => !x.s.has(n.k)).map(n => fxNodeLab(n.k)).join(', ')}.</li>`);
+                return `<div class="rounded-xl bg-amber-950/40 border border-amber-500/40 p-3 text-xs text-amber-100"><div class="font-bold text-sm mb-1">⚠️ Flops qui ne correspondent pas d'un nœud à l'autre (${FX.dep} BB)</div><ul class="list-disc pl-4 space-y-1">${rows.join('')}</ul><div class="text-[10.5px] text-amber-200/70 mt-1">Corrige le nom du fichier concerné (…_on_flop_XXXXXX), puis réimporte-le et recharge la page.</div></div>`; })();
+            const ex = fxExploit(hero, FX.dep, FX.fam); if (!TRL.ix || TRL.ix.key !== hero + '|' + allParsedHands.length) trBuild(hero).then(() => { if (LAB.seg === 'mx' && FX.view === 'sheet') labRender(); });
+            const exH = ex && ex !== 'wait' ? `<div class="rounded-xl bg-slate-900 border border-white/10 p-3"><div class="font-bold text-sm mb-1">🎯 Exploit : le field contre ton solveur <span class="text-xs font-normal text-slate-400">(${famL.toLowerCase()}, tes adversaires dans tes pots limpés HU)</span></div><div class="space-y-2">${ex.R.map(x => { const d = x.fd.p - x.g, sure = x.fd.n >= 30 && Math.abs(d) >= .08;
+                    return `<div class="text-xs"><div class="flex justify-between gap-2"><span class="text-slate-200">${x.q}</span><span><b>${fxPc(x.fd.p)}</b> <span class="text-slate-400">· solveur ${fxPc(x.g)} · ${x.fd.n} mains ${relDot(x.fd.n)}</span></span></div>${sure ? `<div class="mt-0.5 ${d > 0 ? 'text-amber-200' : 'text-sky-200'}">→ ${d > 0 ? x.up : x.dn}</div>` : '<div class="mt-0.5 text-slate-500">Pas d\'écart net.</div>'}</div>`; }).join('')}</div></div>` : '<div class="rounded-xl bg-slate-900 border border-white/10 p-3 text-xs text-slate-400">🎯 Exploit : calcul en cours…</div>';
+            return `${mis}<div class="grid gap-3 lg:grid-cols-2 ${mis ? 'mt-3' : ''}"><div class="space-y-3"><div class="rounded-xl bg-indigo-950/40 border border-indigo-500/30 p-3"><div class="flex justify-between items-baseline gap-2 flex-wrap"><div class="font-black">📋 ${esc(famL)} · ${esc(fxNodeLab(FX.node))} · ${FX.dep} BB</div><div class="text-xs"><span class="text-slate-400">${A.F.length} flop${A.F.length > 1 ? 's' : ''} solvé${A.F.length > 1 ? 's' : ''} ·</span> <b class="${hom.c}">${hom.t}</b></div></div>
+                ${FX.fam !== 'all' ? `<div class="text-[11px] text-slate-400 mt-0.5">${esc(TXFK[FX.fam].d)} Flops : ${A.F.map(R => rcCards(R.flop.join(' '))).join(' · ')}</div>` : ''}
+                <div class="mt-2">${fxBar(A.tot.f, A.labs.sort((a, b) => gtpOrd(a) - gtpOrd(b)), 'h-3')}</div><div class="space-y-1.5 mt-2 text-sm text-slate-200">${rules.map(r => `<p>${fxRuleTxt(r)}</p>`).join('')}</div>
+                ${A.hom != null && A.hom >= .25 ? '<div class="text-xs text-rose-300 mt-2">Attention : les flops de cette famille ont des stratégies assez différentes ; la règle moyenne est approximative. Solve un ou deux flops de plus ici.</div>' : ''}</div>${advH}</div><div class="space-y-3">${exH}${cov}</div></div>`;
+        }
+        // ---- exercices ----
+        function fxExHtml(hero, A, L) {
+            const Q = FX.quiz, B = FX.rb;
+            if (Q && !Q.done) return fxQuizHtml(); if (B) return fxRbHtml(hero);
+            const res = Q && Q.done ? `<div class="rounded-xl bg-slate-900 border border-white/10 p-3 mb-3 text-sm">Dernier quiz : <b>${Q.ok} / ${Q.L.length}</b> bonnes réponses.</div>` : '';
+            return res + `<div class="grid gap-3 md:grid-cols-2"><button data-fx="quiz" class="text-left rounded-2xl bg-slate-900 border border-white/10 p-4 min-h-[120px] hover:bg-slate-800"><div class="font-black text-lg">⚡ Par type de main</div><div class="text-sm text-slate-300 mt-1">10 questions : une famille de flop, un type de main, tu choisis l'action. Corrigé par la stratégie de ton solveur sur ${FX.fam === 'all' ? 'tes flops solvés' : 'la famille'} (nœud ${esc(fxNodeLab(FX.node))}, ${FX.dep} BB).</div></button>
+                <button data-fx="rb" class="text-left rounded-2xl bg-slate-900 border border-white/10 p-4 min-h-[120px] hover:bg-slate-800"><div class="font-black text-lg">🎨 Construis ta range</div><div class="text-sm text-slate-300 mt-1">Un flop solvé s'affiche : peins la matrice (mise / check, ou couche / paie / relance), puis compare à ton solveur, en % de ressemblance et en BB perdues.</div></button></div>`;
+        }
+        function fxQuizStart(A) { const L = [], cls = FX_CL.map(x => x[0]).filter(c => A.S[c] && A.S[c].share >= .02); if (!cls.length) return;
+            for (let i = 0; i < 10; i++) { let r = Math.random() * cls.reduce((s, c) => s + Math.sqrt(A.S[c].share), 0), c = cls[0]; for (const k of cls) { r -= Math.sqrt(A.S[k].share); if (r <= 0) { c = k; break; } }
+                const R = A.F[Math.floor(Math.random() * A.F.length)], ex = R.C.filter((x, j) => R.W[j] > .2 && fxCls([x.slice(0, 2), x.slice(2)], R.flop) === c); const cb = ex.length ? ex[Math.floor(Math.random() * ex.length)] : null;
+                L.push({ c, R, cb: cb ? cb.slice(0, 2) + ' ' + cb.slice(2) : null, f: A.S[c].f, e: A.S[c].e }); }
+            FX.quiz = { L, i: 0, ok: 0, ans: null, labs: A.labs.filter(l => (A.tot.f[l] || 0) > .004).sort((a, b) => gtpOrd(a) - gtpOrd(b)), fam: FX.fam, node: FX.node }; }
+        function fxQuizHtml() { const Q = FX.quiz, q = Q.L[Q.i], best = Q.labs.reduce((a, l) => (q.f[l] || 0) > (q.f[a] || 0) ? l : a, Q.labs[0]);
+            const head = `<div class="flex justify-between items-center mb-2"><b>⚡ Par type de main · ${Q.i + 1}/${Q.L.length}</b><span class="text-sm text-slate-300">${Q.ok} bonne${Q.ok > 1 ? 's' : ''} réponse${Q.ok > 1 ? 's' : ''}</span></div>
+                <div class="rounded-2xl bg-emerald-950/40 border border-emerald-500/30 p-4"><div class="text-xs text-slate-400">${esc(fxNodeLab(Q.node))} · ${Q.fam === 'all' ? 'flop' : 'famille ' + esc(TXFK[Q.fam].l)} · par ex. ${rcCards(q.R.flop.join(' '))}</div><div class="text-2xl font-black mt-1">${FX_CLL[q.c]}</div>${q.cb ? `<div class="text-sm text-slate-300 mt-1">par exemple ${rcCards(q.cb)}</div>` : ''}</div>`;
+            if (!Q.ans) return head + `<div class="grid gap-2 mt-3" style="grid-template-columns:repeat(${Q.labs.length},minmax(0,1fr))">${Q.labs.map(l => `<button data-fx="qa" data-v="${esc(l)}" class="min-h-[60px] rounded-2xl text-base font-black text-white" style="background:${fxCol(l)}">${esc(l)}</button>`).join('')}</div><button data-fx="qquit" class="mt-3 text-sm text-slate-400 underline min-h-[44px]">Quitter</button>`;
+            const A = Q.ans; return head + `<div class="mt-3 rounded-2xl border p-3 ${A.ok ? 'bg-emerald-900/40 border-emerald-500/40' : 'bg-rose-900/40 border-rose-500/40'}"><div class="text-lg font-black">${A.ok ? '✅ Bien vu' : '❌ Pas tout à fait'} · tu choisis ${esc(A.v)}</div><div class="mt-2">${fxBar(q.f, Q.labs, 'h-3')}</div>
+                <div class="text-sm text-slate-200 mt-1">${Q.labs.filter(l => q.f[l] > .004).map(l => `${esc(l)} <b>${fxPc(q.f[l])}</b> <span class="text-xs text-slate-400">(EV ${labF1(q.e[l])})</span>`).join(' · ')}</div><div class="text-xs text-slate-400 mt-1">Action la plus jouée par ton solveur : ${esc(best)}. Une action jouée au moins 35 % du temps compte comme bonne réponse.</div></div>
+                <button data-fx="qn" class="mt-3 w-full min-h-[52px] rounded-2xl bg-indigo-600 text-white font-black">${Q.i + 1 >= Q.L.length ? 'Terminer' : 'Suivante ▶'}</button>`; }
+        function fxRbStart(A) { const R = A.F.find(R => R.flop.join('') === FX.flop) || A.F[Math.floor(Math.random() * A.F.length)], labs = fxRec(R).L, grp = [...new Set(R.acts.map(gtpGrp))].sort((a, b) => ({ x: 0, f: 1, c: 2, b: 3, r: 4 })[a] - ({ x: 0, f: 1, c: 2, b: 3, r: 4 })[b]);
+            const G = grp.map(g => ({ g, l: g === 'x' ? 'Check' : g === 'f' ? 'Couche' : g === 'c' ? 'Paie' : g === 'b' ? 'Mise' : 'Relance' })), C = []; for (let ci = 0; ci < 169; ci++) C.push(fxCell(R, ci));
+            FX.rb = { R, G, C, pick: new Array(169).fill(0), done: false, labs }; }
+        function fxRbGrpF(x, R, g) { return Object.keys(x.f).filter(l => { const a = R.acts.find(a => fxLab(a, R) === l); return a && gtpGrp(a) === g; }).reduce((s, l) => s + x.f[l], 0); }
+        function fxRbGrpE(x, R, g) { const v = Object.keys(x.e).filter(l => { const a = R.acts.find(a => fxLab(a, R) === l); return a && gtpGrp(a) === g; }).map(l => x.e[l]); return v.length ? Math.max(...v) : null; }
+        function fxRbHtml(hero) { const B = FX.rb, R = B.R, cols = { x: '#0ea5e9', f: '#64748b', c: '#10b981', b: '#f59e0b', r: '#f97316' };
+            let sim = 0, sw = 0, loss = 0; if (B.done) B.C.forEach((x, ci) => { if (!x.w) return; const g = B.G[B.pick[ci]].g, fg = fxRbGrpF(x, R, g), eg = fxRbGrpE(x, R, g), eb = Math.max(...Object.values(x.e)); sim += x.w * fg; sw += x.w; if (eg != null) loss += x.w * Math.max(0, eb - eg); });
+            const grid = fxGrid(R, ci => { const x = B.C[ci], g = B.G[B.pick[ci]]; if (!x.w) return `<div class="aspect-square rounded-[3px] bg-slate-900 text-[9px] text-slate-600 flex items-center justify-center">${cname(ci)}</div>`;
+                const bad = B.done && fxRbGrpF(x, R, g.g) < .3; let bg = cols[g.g]; if (B.done) { let a = 0; bg = 'linear-gradient(90deg,' + B.labs.filter(l => x.f[l] > .004).map(l => { const s = a; a += 100 * x.f[l]; return `${fxCol(l)} ${s}% ${a}%`; }).join(',') + ')'; }
+                return `<button data-fx="rbc" data-v="${ci}" class="aspect-square rounded-[3px] text-[9px] sm:text-[10px] font-bold text-white flex items-center justify-center ${bad ? 'ring-2 ring-rose-500 z-10' : ''}" style="background:${bg}">${cname(ci)}</button>`; });
+            return `<div class="flex justify-between items-center flex-wrap gap-2 mb-2"><div><b>🎨 Construis ta range</b> · ${esc(fxNodeLab(FX.node))} · ${FX.dep} BB · ${rcCards(R.flop.join(' '))}</div><div class="flex gap-1.5">${B.G.map((g, i) => `<button data-fx="rball" data-v="${i}" class="min-h-[40px] px-3 rounded-lg text-xs font-bold text-white" style="background:${cols[g.g]}">Tout en ${g.l.toLowerCase()}</button>`).join('')}</div></div>
+                <div class="grid gap-3 lg:grid-cols-[minmax(0,600px)_1fr]"><div>${grid}<div class="text-[11px] text-slate-400 mt-2">${B.done ? 'Couleurs : la stratégie de ton solveur. Cadre rouge : ton choix y est joué moins de 30 % du temps.' : `Touche une case pour changer : ${B.G.map(g => `<span style="color:${cols[g.g]}">${g.l}</span>`).join(' → ')}. Les cases grises sont hors de la range à ce nœud.`}</div></div>
+                <div class="rounded-xl bg-slate-900 border border-white/10 p-3">${B.done ? `<div class="text-3xl font-black">${fxPc(sw ? sim / sw : 0)}</div><div class="text-sm text-slate-300">de ressemblance avec ton solveur (pondéré par les combos)</div><div class="text-sm text-slate-300 mt-2">EV perdue : <b class="text-rose-300">${simF1(sw ? loss / sw : 0)} BB</b> par main en moyenne, soit ${simF1(sw ? 100 * loss / sw : 0)} BB / 100.</div>` : '<div class="text-sm text-slate-300">Peins ta stratégie, puis corrige.</div>'}
+                    <div class="grid grid-cols-2 gap-2 mt-3">${B.done ? '<button data-fx="rbnew" class="min-h-[52px] rounded-xl bg-indigo-600 text-white font-bold">Autre flop</button>' : '<button data-fx="rbok" class="min-h-[52px] rounded-xl bg-indigo-600 text-white font-bold">Corriger</button>'}<button data-fx="rbquit" class="min-h-[52px] rounded-xl bg-slate-800 text-slate-200 font-bold">Quitter</button></div></div></div>`; }
+        // ---- clics ----
+        document.addEventListener('click', e => { const b = e.target.closest('#labBox [data-fx]'); if (!b) return; const a = b.dataset.fx, v = b.dataset.v, hero = playerSelect.value;
+            const cur = () => fxFam(fxRecs(FX.node, FX.dep), FX.fam);
+            if (a === 'node') { FX.node = v; FX.cell = null; FX.quiz = null; FX.rb = null; } else if (a === 'dep') { FX.dep = +v; FX.cell = null; FX.rb = null; } else if (a === 'fam') { FX.fam = v; FX.flop = null; FX.cell = null; FX.rb = null; }
+            else if (a === 'view') FX.view = v; else if (a === 'flop') { FX.flop = v; FX.cell = null; } else if (a === 'cell') FX.cell = +v;
+            else if (a === 'replay') { const h = allParsedHands.find(x => x.id === v); if (h) startReplay(h, null, null, { ctx: 'Matrice · flop solvé' }); return; }
+            else if (a === 'quiz') { const A = cur(); if (A) fxQuizStart(A); } else if (a === 'qquit') FX.quiz = null;
+            else if (a === 'qa') { const Q = FX.quiz, q = Q.L[Q.i], best = Math.max(...Q.labs.map(l => q.f[l] || 0)), ok = (q.f[v] || 0) >= .35 || (q.f[v] || 0) >= best - 1e-9; Q.ans = { v, ok }; if (ok) Q.ok++; }
+            else if (a === 'qn') { const Q = FX.quiz; Q.i++; Q.ans = null; if (Q.i >= Q.L.length) Q.done = true; }
+            else if (a === 'rb' || a === 'rbnew') { const A = cur(); if (a === 'rbnew') FX.flop = null; if (A) fxRbStart(A); } else if (a === 'rbquit') FX.rb = null;
+            else if (a === 'rbc') { const B = FX.rb; if (!B.done) B.pick[+v] = (B.pick[+v] + 1) % B.G.length; } else if (a === 'rball') { const B = FX.rb; if (!B.done) B.pick.fill(+v); } else if (a === 'rbok') FX.rb.done = true;
+            labRender(); });
+        // ---- Mode table : la règle de la famille du flop ----
+        function fxMtCard(C) { try { if (!gtpCtx(C) || !C.cards || C.cards.length !== 3) return ''; const me = C.pos(0), kind = me === 'BB' ? 'first' : 'x', nk = me + '|' + kind + '|0', nd = fxNodes().find(x => x.k === nk); if (!nd) return '';
+                const eff = Math.min(...C.seats.map(k => mtQ(MT.st[k]))), dep = nd.deps.reduce((a, b) => Math.abs(b - eff) < Math.abs(a - eff) ? b : a, nd.deps[0]), fam = txFamOf3(C.cards), L = fxRecs(nk, dep), A = fxFam(L, fam); if (!A) return `<div class="rounded-xl bg-slate-900 border border-white/10 p-2.5 mb-2 text-xs text-slate-300">📋 Famille <b>${esc(TXFK[fam].l)}</b> : aucun flop solvé pour l'instant (${esc(fxNodeLab(nk))}, ${dep} BB).</div>`;
+                const R = fxRules(A).slice(0, 2), hom = fxHomLab(A.hom); let mine = '';
+                if (mtCell != null) { const cs = cellCombos(mtCell).map(([x, y]) => [MP_DECK[x], MP_DECK[y]]).filter(h => !C.cards.includes(h[0]) && !C.cards.includes(h[1])), cnt = {}; cs.forEach(h => { const k = fxCls(h, C.cards); cnt[k] = (cnt[k] || 0) + 1; });
+                    const k = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0], s = k && A.S[k]; if (s) mine = `<div class="text-xs text-slate-200 mt-1">Ta main <b>${cname(mtCell)}</b> = ${FX_CLL[k].toLowerCase()} → ${A.labs.filter(l => s.f[l] >= .1).sort((a, b) => s.f[b] - s.f[a]).map(l => `<b style="color:${fxCol(l)}">${esc(l)} ${fxPc(s.f[l])}</b>`).join(' · ')}</div>`; }
+                return `<details class="rounded-xl bg-indigo-950/40 border border-indigo-500/30 p-2.5 mb-2"><summary class="cursor-pointer min-h-[40px] list-none"><div class="text-xs font-bold text-indigo-200">📋 Famille ${esc(TXFK[fam].l)} · ${esc(fxNodeLab(nk))} · ${A.F.length} flop${A.F.length > 1 ? 's' : ''} solvé${A.F.length > 1 ? 's' : ''} · <span class="${hom.c}">${hom.t}</span> <span class="text-slate-400 font-normal">(toucher pour la fiche)</span></div><div class="text-xs text-slate-200 mt-1">${R.map(r => fxRuleTxt(r, true)).join(' ')}</div>${mine}</summary>
+                    <div class="text-xs text-slate-300 mt-2 space-y-1">${fxRules(A).map(r => `<p>${fxRuleTxt(r)}</p>`).join('')}</div><button data-fxmt="${esc(nk)}|${dep}|${fam}" class="mt-2 min-h-[40px] px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold">Ouvrir la fiche complète</button></details>`; } catch (e) { console.error('fxmt', e); return ''; } }
+        { const _g = gtpHtml; gtpHtml = function (C) { const r = _g.apply(this, arguments); return r ? fxMtCard(C) + r : r; }; }
+        document.addEventListener('click', e => { const b = e.target.closest('[data-fxmt]'); if (!b) return; const [r, k, p, d, f] = b.dataset.fxmt.split('|'); FX.node = [r, k, p].join('|'); FX.dep = +d; FX.fam = f; FX.view = 'sheet'; try { gdLab('mx'); } catch (x) { LAB.seg = 'mx'; showTab('lab'); } });
 
 </script>
 </body>
