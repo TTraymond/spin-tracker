@@ -5040,7 +5040,7 @@
         const FF_ACT = { fold: 'fold', call: 'call', check: 'check', minr: 'min-raise', bigr: 'relance', shove: 'shove' };
         const ffDepOk = e => ff.dm === 'all' ? true : ff.dm === 'x' ? Math.abs(e - ff.dx) <= .5 : e >= ff.dlo && e <= ff.dhi;
         const ffDepLab = () => ff.dm === 'all' ? 'toutes profondeurs' : ff.dm === 'x' ? `${ff.dx} BB (±0,5)` : `${ff.dlo}–${ff.dhi} BB`;
-        const FF_SCEN = { 'HU|SB|open': 'HU|SB|open', 'HU|BB|shove@SB': 'HU|BB|shove|SB', '3M|BTN|open': '3-max|BTN|open', '3M|SB|open': '3-max|SB|open', '3M|BB|shove@SB': '3-max|BB|shove|SB', '3M|BB|shove@BTN': '3-max|BB|shove|BTN', '3M|SB|shove@BTN': '3-max|SB|shove|BTN' };
+        const FF_SCEN = { '3M|BB|minC@BTN': '3M|BB|T3XvRC', 'HU|SB|open': 'HU|SB|open', 'HU|BB|shove@SB': 'HU|BB|shove|SB', '3M|BTN|open': '3-max|BTN|open', '3M|SB|open': '3-max|SB|open', '3M|BB|shove@SB': '3-max|BB|shove|SB', '3M|BB|shove@BTN': '3-max|BB|shove|BTN', '3M|SB|shove@BTN': '3-max|SB|shove|BTN' };
         function ffSpotLab(k) { const [f, pos, rest] = k.split('|'), [ctx, by] = rest.split('@'); return `${f === 'HU' ? 'HU' : '3-way'} · ${pos} ${FF_CTX[ctx] || ctx}${by ? (ctx === 'limp' ? '' : ` du ${by}`) : ''}${f === '3M' && pos === 'SB' && ctx === 'open' ? ' (BTN a foldé)' : ''}`; }
         function ffCompute(hero) {
             const key = JSON.stringify([hero, ff.fmt, ff.dm, ff.dx, ff.dlo, ff.dhi, ff.min, ff.conf, dKey(), currentFilteredHands.length, dateSelect.value, buyinSelect.value, adjCache.size, R3REF]); if (_ffC && _ffC.key === key) return _ffC;
@@ -5049,7 +5049,7 @@
                 if (h.buyin === 0) return; const n = h.players.length; if (n < 2 || n > 3) return; const fmt = n === 2 ? 'HU' : '3M'; if (ff.fmt !== 'all' && ff.fmt !== fmt) return;
                 const ev = fsEvents(h); if (!ev.length) return; const bb = bbOf(h) || 1, seen = new Set();
                 ev.forEach(e => { if (seen.has(e.p)) return; seen.add(e.p); const o = { h, p: e.p }, eff = fsEff(o); if (!ffDepOk(eff)) return;
-                    const k = `${fmt}|${e.pos}|${e.ctx}${e.by ? '@' + e.by : ''}`, a = e.act === 'raise' ? (e.mr ? 'minr' : 'bigr') : e.act; let v = 0; try { v = handCEV(h, e.p) / bb; } catch (x) { }
+                    const k = `${fmt}|${e.pos}|${e.ctx}${e.cc && (e.ctx === 'min' || e.ctx === 'big') ? 'C' : ''}${e.by ? '@' + e.by : ''}`, a = e.act === 'raise' ? (e.mr ? 'minr' : 'bigr') : e.act; let v = 0; try { v = handCEV(h, e.p) / bb; } catch (x) { }
                     const S = SP[k] || (SP[k] = { k, me: mk(), fd: mk(), items: [] }), T = e.p === hero ? S.me : S.fd; T.n++; T.s += v; T.s2 += v * v; T.acts[a] = (T.acts[a] || 0) + 1;
                     if (e.p === hero) { S.items.push({ h, v, a, ci: h.hole && h.hole[0] === hero ? cidx(cell(h.hole[1])) : null, eff }); hands.push({ h, v, fmt, eff }); } });
             });
@@ -7470,7 +7470,7 @@
         const pfReset = () => { PF_WARN.length = 0; _pfRef = null; _pfCC.clear(); try { _pfOL.clear(); } catch (e) { } pfInval(); };
         (async () => { try { const c = await localforage.getItem('pf_cfg'); if (c) PF_CFG = { ...PF_CFG, ...c }; const t = await localforage.getItem('pf_csv'); if (t) { PF_TXT = { ...PF_CSV0, ...t }; if (!t.L3) PF_TXT.L3 = PF_CSV0.L3; } if (c || t) pfReset(); } catch (e) { } })();
         const PF_ACTS = { O: ['fold', 'limp', 'raise', 'shove'], B_AI: ['fold', 'call'], B_L: ['check', 'raise', 'shove'], B_R: ['fold', 'call', 'raise', 'shove'], R_AI: ['fold', 'call'], R_3B: ['fold', 'call', 'shove'], L_AI: ['fold', 'call'], L_R: ['fold', 'call', 'shove'], B_4B: ['fold', 'call'], B_LS: ['fold', 'call'] };
-        const PF_PAR = { R_AI: ['O', 'raise'], R_3B: ['O', 'raise'], L_AI: ['O', 'limp'], L_R: ['O', 'limp'], B_4B: ['B_R', 'raise'], B_LS: ['B_L', 'raise'], T_RSC: ['T_O', 'raise'], T_RSF: ['T_O', 'raise'], T_RFS: ['T_O', 'raise'], T_RF3: ['T_O', 'raise'], T_B4: ['T_BRF', 'raise'], T_LSC: ['T_OL', 'limp'], T_LSF: ['T_OL', 'limp'], T_LRS: ['T_OL', 'limp'], T_LRC: ['T_OL', 'limp'], T_LRF: ['T_OL', 'limp'], T_LBS: ['T_OL', 'limp'], T_LBR: ['T_OL', 'limp'], T_SRS: ['T_SL', 'raise'], T_SRF: ['T_SL', 'raise'], T_BRL: ['T_BL', 'raise'] };
+        const PF_PAR = { R_AI: ['O', 'raise'], R_3B: ['O', 'raise'], L_AI: ['O', 'limp'], L_R: ['O', 'limp'], B_4B: ['B_R', 'raise'], B_LS: ['B_L', 'raise'], T_RSC: ['T_O', 'raise'], T_RSF: ['T_O', 'raise'], T_RFS: ['T_O', 'raise'], T_RF3: ['T_O', 'raise'], T_B4: ['T_BRF', 'raise'], T_LSC: ['T_OL', 'limp'], T_LSF: ['T_OL', 'limp'], T_LRS: ['T_OL', 'limp'], T_LRC: ['T_OL', 'limp'], T_LRF: ['T_OL', 'limp'], T_LBS: ['T_OL', 'limp'], T_LBR: ['T_OL', 'limp'], T_SRS: ['T_SL', 'raise'], T_SRF: ['T_SL', 'raise'], T_BRL: ['T_BL', 'raise'], T_RCS: ['T_O', 'raise'], T_SCB: ['T_SR', 'call'], T_SCBC: ['T_SR', 'call'] };
         const PF_BVBN = { 'SB FIRST TO ACT (BTN FOLD)': 'O', 'BB VS SB ALL IN': 'B_AI', 'BB VS SB RAISE': 'B_R', 'BB VS SB LIMP': 'B_L', 'SB RAISE VS BB ALL IN': 'R_AI', 'SB RAISE VS BB 3BET': 'R_3B', 'SB LIMP VS BB ALL IN': 'L_AI', 'SB LIMP VS BB RAISE': 'L_R', 'BB VS SB 4BET SHOVE': 'B_4B', 'BB VS SB LIMP SHOVE': 'B_LS' };
         const PF_HUN = { 'BTN FIRST TO ACT': 'O', 'BB VS BTN ALL IN': 'B_AI', 'BB VS BTN RAISE': 'B_R', 'BB VS BTN LIMP': 'B_L', 'BTN RAISE VS BB ALL IN': 'R_AI', 'BTN RAISE VS BB 3BET': 'R_3B', 'BTN LIMP VS BB ALL IN': 'L_AI', 'BTN LIMP VS BB RAISE': 'L_R', 'BB VS BTN 4BET SHOVE': 'B_4B', 'BB VS BTN LIMP SHOVE': 'B_LS' };
         // 3-way, le BTN agit : nœuds de ta charte 3-way (T_…) + nœuds sans charte, estimés depuis tes HH (limp du BTN : T_SL, T_BL, T_LS)
@@ -7479,11 +7479,13 @@
             T_OL: ['fold', 'limp'], T_BLC: ['check', 'raise', 'shove'], T_BLS: ['fold', 'call'], T_BLR: ['fold', 'call', 'shove'], T_LSC: ['fold', 'call'], T_LSF: ['fold', 'call'], T_LRS: ['fold', 'call'], T_LRC: ['fold', 'call', 'shove'], T_LRF: ['fold', 'call', 'shove'],
             T_SRS: ['fold', 'call'], T_SRF: ['fold', 'call'], T_LBS: ['fold', 'call'], T_LBR: ['fold', 'call', 'shove'], T_BRL: ['fold', 'call'],
             // pas dans ta sim (estimés depuis tes HH) : BTN puis SB face au shove de la BB après la complète ; SB face au shove du BTN après son raise (BB fold)
-            T_LCS: ['fold', 'call'], T_SCS: ['fold', 'call'], T_SLS: ['fold', 'call'] });
+            T_LCS: ['fold', 'call'], T_SCS: ['fold', 'call'], T_SLS: ['fold', 'call'],
+            // BTN min-raise, SB PAIE : BB (fold / sur-call / shove) → BTN face au shove → SB face au shove (BTN fold ou call) — nœuds 7 à 10 du solveur 3-way
+            T_BRC: ['fold', 'call', 'shove'], T_RCS: ['fold', 'call'], T_SCB: ['fold', 'call'], T_SCBC: ['fold', 'call'] });
         const PF_3LN = { 'BTN LIMP': 'T_OL', 'SB VS BTN LIMP': 'T_SL', 'BB VS BTN LIMP AND SB CALL': 'T_BLC', 'BB VS BTN LIMP AND SB ALL IN': 'T_BLS', 'BTN VS SB ALL IN AND BB CALL': 'T_LSC', 'BTN VS SB ALL IN AND BB FOLD': 'T_LSF', 'BB VS BTN LIMP AND SB RAISE': 'T_BLR', 'BTN VS SB RAISE AND BB ALL IN': 'T_LRS', 'BTN VS SB RAISE AND BB CALL': 'T_LRC', 'BTN VS SB RAISE AND BB FOLD': 'T_LRF', 'SB RAISE VS BB ALL IN AND BTN CALL': 'T_SRS', 'SB RAISE VS BB ALL IN AND BTN FOLD': 'T_SRF', 'BB VS BTN LIMP AND SB FOLD': 'T_BL', 'BTN VS BB ALL IN AND SB FOLD': 'T_LBS', 'BTN VS BB RAISE AND SB FOLD': 'T_LBR', 'BB RAISE VS BTN ALL IN AND SB FOLD': 'T_BRL' };
-        const PF_3MN = { 'BTN FIRST TO ACT': 'T_O', 'SB VS BTN ALL IN': 'T_SAI', 'SB VS BTN RAISE': 'T_SR', 'BB VS BTN ALL IN AND SB CALL': 'T_BAIC', 'BB VS BTN ALL IN AND SB FOLD': 'T_BAIF', 'BB VS BTN RAISE AND SB ALL IN': 'T_BRS', 'BB VS BTN RAISE AND SB FOLD': 'T_BRF', 'BTN RAISE VS SB ALL IN AND BB CALL': 'T_RSC', 'BTN RAISE VS SB ALL IN AND BB FOLD': 'T_RSF', 'BTN RAISE VS SB FOLD AND BB ALL IN': 'T_RFS', 'BTN RAISE VS SB FOLD AND BB 3BET': 'T_RF3', 'BB 3BET VS BTN 4BET SHOVE': 'T_B4' };
-        const PF_OWN = { T_O: 'BTN', T_RSC: 'BTN', T_RSF: 'BTN', T_RFS: 'BTN', T_RF3: 'BTN', T_SAI: 'SB', T_SR: 'SB', T_SL: 'SB', T_BAIC: 'BB', T_BAIF: 'BB', T_BRS: 'BB', T_BRF: 'BB', T_BL: 'BB', T_B4: 'BB', T_OL: 'BTN', T_LSC: 'BTN', T_LSF: 'BTN', T_LRS: 'BTN', T_LRC: 'BTN', T_LRF: 'BTN', T_LBS: 'BTN', T_LBR: 'BTN', T_LCS: 'BTN', T_SRS: 'SB', T_SRF: 'SB', T_SCS: 'SB', T_SLS: 'SB', T_BLC: 'BB', T_BLS: 'BB', T_BLR: 'BB', T_BRL: 'BB' };
-        const PF_ROOT = new Set(['O', 'B_AI', 'B_R', 'B_L', 'T_O', 'T_SAI', 'T_SR', 'T_SL', 'T_BAIC', 'T_BAIF', 'T_BRS', 'T_BRF', 'T_BL', 'T_OL', 'T_BLC', 'T_BLS', 'T_BLR']), PF_ALLIN = new Set(['B_AI', 'L_AI', 'R_AI', 'B_LS', 'B_4B', 'T_SAI', 'T_BAIC', 'T_BAIF', 'T_BRS', 'T_RSC', 'T_RSF', 'T_RFS', 'T_B4', 'T_BLS', 'T_LSC', 'T_LSF', 'T_LRS', 'T_SRS', 'T_SRF', 'T_LBS', 'T_BRL', 'T_LCS', 'T_SCS', 'T_SLS']);
+        const PF_3MN = { 'BTN FIRST TO ACT': 'T_O', 'SB VS BTN ALL IN': 'T_SAI', 'SB VS BTN RAISE': 'T_SR', 'BB VS BTN ALL IN AND SB CALL': 'T_BAIC', 'BB VS BTN ALL IN AND SB FOLD': 'T_BAIF', 'BB VS BTN RAISE AND SB ALL IN': 'T_BRS', 'BB VS BTN RAISE AND SB FOLD': 'T_BRF', 'BTN RAISE VS SB ALL IN AND BB CALL': 'T_RSC', 'BTN RAISE VS SB ALL IN AND BB FOLD': 'T_RSF', 'BTN RAISE VS SB FOLD AND BB ALL IN': 'T_RFS', 'BTN RAISE VS SB FOLD AND BB 3BET': 'T_RF3', 'BB 3BET VS BTN 4BET SHOVE': 'T_B4', 'BB VS BTN RAISE AND SB CALL': 'T_BRC', 'BTN RAISE VS SB CALL AND BB ALL IN': 'T_RCS', 'SB CALL VS BB ALL IN AND BTN FOLD': 'T_SCB', 'SB CALL VS BB ALL IN AND BTN CALL': 'T_SCBC' };
+        const PF_OWN = { T_O: 'BTN', T_RSC: 'BTN', T_RSF: 'BTN', T_RFS: 'BTN', T_RF3: 'BTN', T_SAI: 'SB', T_SR: 'SB', T_SL: 'SB', T_BAIC: 'BB', T_BAIF: 'BB', T_BRS: 'BB', T_BRF: 'BB', T_BL: 'BB', T_B4: 'BB', T_OL: 'BTN', T_LSC: 'BTN', T_LSF: 'BTN', T_LRS: 'BTN', T_LRC: 'BTN', T_LRF: 'BTN', T_LBS: 'BTN', T_LBR: 'BTN', T_LCS: 'BTN', T_SRS: 'SB', T_SRF: 'SB', T_SCS: 'SB', T_SLS: 'SB', T_BLC: 'BB', T_BLS: 'BB', T_BLR: 'BB', T_BRL: 'BB', T_BRC: 'BB', T_RCS: 'BTN', T_SCB: 'SB', T_SCBC: 'SB' };
+        const PF_ROOT = new Set(['O', 'B_AI', 'B_R', 'B_L', 'T_O', 'T_SAI', 'T_SR', 'T_SL', 'T_BAIC', 'T_BAIF', 'T_BRS', 'T_BRF', 'T_BL', 'T_OL', 'T_BLC', 'T_BLS', 'T_BLR', 'T_BRC']), PF_ALLIN = new Set(['T_RCS', 'T_SCB', 'T_SCBC', 'B_AI', 'L_AI', 'R_AI', 'B_LS', 'B_4B', 'T_SAI', 'T_BAIC', 'T_BAIF', 'T_BRS', 'T_RSC', 'T_RSF', 'T_RFS', 'T_B4', 'T_BLS', 'T_LSC', 'T_LSF', 'T_LRS', 'T_SRS', 'T_SRF', 'T_LBS', 'T_BRL', 'T_LCS', 'T_SCS', 'T_SLS']);
 
         // --- lecture des CSV (format Google Sheets : ligne 1 = nœuds, ligne 2 = actions, puis une ligne par stack : % et range) ---
         function pfCsv(t) { const R = []; let row = [], c = '', q = false;
@@ -7608,6 +7610,7 @@
             const a1 = nxt(bt); ad(bt, 'T_O', a1 === 'call' ? 'limp' : a1); const sa = a1 === 'fold' ? null : nxt(sb), ba = () => nxt(bn);
             if (a1 === 'shove') { ad(sb, 'T_SAI', fc(sa)); const b = ba(); if (sa != null) ad(bn, sa === 'call' ? 'T_BAIC' : 'T_BAIF', fc(b)); }
             else if (a1 === 'raise') { const s2 = sa === 'raise' ? 'shove' : sa; ad(sb, 'T_SR', s2); if (s2 === 'shove') { const b = fc(ba()); ad(bn, 'T_BRS', b); if (b) ad(bt, b === 'call' ? 'T_RSC' : 'T_RSF', fc(nxt(bt))); }
+                else if (s2 === 'call') { const b = sv(ba()); ad(bn, 'T_BRC', b); if (b === 'shove') { const t = fc(nxt(bt)); ad(bt, 'T_RCS', t); if (t) ad(sb, t === 'call' ? 'T_SCBC' : 'T_SCB', fc(nxt(sb))); } }
                 else if (s2 === 'fold') { const b = ba(); ad(bn, 'T_BRF', b === 'check' ? 'call' : b); if (b === 'shove') ad(bt, 'T_RFS', fc(nxt(bt))); else if (b === 'raise') { const t = sv(nxt(bt)); ad(bt, 'T_RF3', t); if (t === 'shove') ad(bn, 'T_B4', fc(nxt(bn))); } } }
             // le BTN limpe : SB (fold / complète / raise / shove) → BB → BTN → SB, nœuds de ta sim « BTN limp »
             else if (a1 === 'call') { ad(sb, 'T_SL', sa);
@@ -7768,11 +7771,12 @@
             if (noTh) A.forEach(a => Ph[a] = new Float64Array(n));
             // action que ta charte ne joue jamais à ce stack (ex. min-raise sous 11 BB en HU) : traitée comme estimée, seuil + 0,05 BB
             const one169 = new Float64Array(n).fill(1), mg = noTh ? null : pfMarg(Ph, sit.par ? pfParW(fm, S, sit.par) : one169, A), absent = {}; A.forEach(a => absent[a] = !!mg && mg[a] < .01);
-            const reach = sit.par ? pfParW(fm, S, sit.par) : new Float64Array(n).fill(1), lam = PF_CFG.lam;
+            // ta range qui arrive ici (ta charte au nœud précédent) ; si ta charte n'y arrive presque jamais, toutes les mains restent affichées
+            const reach = (() => { if (!sit.par) return new Float64Array(n).fill(1); const r = pfParW(fm, S, sit.par); let a = 0, b = 0; for (let i = 0; i < n; i++) { a += r3W(i) * (r[i] || 0); b += r3W(i); } return a < .01 * b ? new Float64Array(n).fill(1) : r; })(), lam = PF_CFG.lam;
             const rCom = A.includes('raise') && A.includes('shove') && pfRsz(sit.node) >= .25 * S;
             let G = 0, GW = 0, SW = 0, anch = 0; const share = {}, tshare = {}; A.forEach(a => { share[a] = 0; tshare[a] = 0; });
             for (let i = 0; i < n; i++) { if (!(r.mass[i] > 1e-12)) continue; let z = 0, mxP = 0; A.forEach(a => { z += Ph[a][i]; mxP = Math.max(mxP, Ph[a][i]); });
-                const has0 = !noTh && r0 && r0.mass[i] > 1e-12; if (has0) anch++;
+                const has0 = !noTh && ((r0 && r0.mass[i] > 1e-12) || /^solveur/.test(H.src)); if (has0) anch++;
                 // correction : contre la théorie, l'action principale de ta charte doit sortir devant (d'au moins lam × l'écart de fréquence) ; les EV absolues restent celles du modèle
                 const aS = A.reduce((x, y) => Ph[y][i] > Ph[x][i] ? y : x, A[0]);
                 A.forEach(a => { const pen = a === aS || !has0 ? 0 : Math.max(0, (isFinite(r0.ev[a][i]) ? r0.ev[a][i] : r.ev[a][i]) - (isFinite(r0.ev[aS][i]) ? r0.ev[aS][i] : r.ev[aS][i])) + lam * (1 - (mxP > 0 ? Ph[a][i] / mxP : 0)) + ((sit.est && sit.est.includes(a)) || absent[a] ? .05 : 0); sc[a][i] = r.ev[a][i] - pen; });
@@ -7872,7 +7876,11 @@
             T3RFS: { fmt: '3M', me: 'BTN', node: 'T_RFS', par: ['T_O', 'raise'], acts: ['fold', 'call'], opp: ['T_BRF'] },
             T3RF3: { fmt: '3M', me: 'BTN', node: 'T_RF3', par: ['T_O', 'raise'], acts: ['fold', 'call', 'shove'], opp: ['T_BRF', 'T_B4'] },
             T3SvS: { fmt: '3M', me: 'SB', node: 'T_SAI', acts: ['fold', 'call'], opp: ['T_O', 'T_BAIC'] },
-            T3SvR: { fmt: '3M', me: 'SB', node: 'T_SR', acts: ['fold', 'call', 'shove'], est: ['call'], opp: ['T_O', 'T_BRS', 'T_RSF', 'T_RSC'] },
+            T3SvR: { fmt: '3M', me: 'SB', node: 'T_SR', acts: ['fold', 'call', 'shove'], opp: ['T_O', 'T_BRS', 'T_RSF', 'T_RSC', 'T_BRC', 'T_RCS'] },
+            T3RCB: { fmt: '3M', me: 'SB', node: 'T_SCB', par: ['T_SR', 'call'], acts: ['fold', 'call'], opp: ['T_O', 'T_BRC', 'T_RCS'] },
+            T3RCBC: { fmt: '3M', me: 'SB', node: 'T_SCBC', par: ['T_SR', 'call'], acts: ['fold', 'call'], opp: ['T_O', 'T_BRC', 'T_RCS'] },
+            T3RCS: { fmt: '3M', me: 'BTN', node: 'T_RCS', par: ['T_O', 'raise'], acts: ['fold', 'call'], opp: ['T_SR', 'T_BRC', 'T_SCBC'] },
+            T3XvRC: { fmt: '3M', me: 'BB', node: 'T_BRC', acts: ['fold', 'call', 'shove'], opp: ['T_O', 'T_SR', 'T_RCS', 'T_SCB', 'T_SCBC'] },
             T3XvS: { fmt: '3M', me: 'BB', node: 'T_BAIF', acts: ['fold', 'call'], opp: ['T_O'] },
             T3XvSC: { fmt: '3M', me: 'BB', node: 'T_BAIC', acts: ['fold', 'call'], opp: ['T_O', 'T_SAI'] },
             T3XvR: { fmt: '3M', me: 'BB', node: 'T_BRF', acts: ['fold', 'call', 'raise', 'shove'], opp: ['T_O', 'T_SR', 'T_RF3', 'T_RFS'] },
@@ -7901,11 +7909,12 @@
         Object.assign(PF_NODE, { T_O: 'au BTN, en premier', T_SAI: 'en SB, face au shove du BTN', T_SR: 'en SB, face au min-raise du BTN', T_SL: 'en SB, face au limp du BTN', T_BAIC: 'en BB, BTN shove + SB call', T_BAIF: 'en BB, face au shove du BTN', T_BRS: 'en BB, BTN min-raise + SB shove', T_BRF: 'en BB, face au min-raise du BTN', T_BL: 'en BB, face au limp du BTN', T_RSC: 'après son min-raise : SB shove + BB call', T_RSF: 'après son min-raise : SB shove', T_RFS: 'après son min-raise : BB shove', T_RF3: 'après son min-raise : 3-bet de la BB', T_B4: 'après son 3-bet : 4-bet shove du BTN',
             T_BLC: 'en BB, BTN limp + SB complète', T_BLS: 'en BB, BTN limp + SB shove', T_BLR: 'en BB, BTN limp + SB raise', T_LSC: 'après son limp : SB shove + BB call', T_LSF: 'après son limp : SB shove (BB fold)', T_LRS: 'après son limp : SB raise + BB shove', T_LRC: 'après son limp : SB raise + BB call', T_LRF: 'après son limp : SB raise (BB fold)',
             T_SRS: 'en SB, après son raise : BB shove + BTN call', T_SRF: 'en SB, après son raise : BB shove (BTN fold)', T_LBS: 'après son limp : BB shove (SB fold)', T_LBR: 'après son limp : BB raise (SB fold)', T_BRL: 'en BB, après son raise : shove du BTN',
-            T_LCS: 'après son limp : SB complète, BB shove', T_SCS: 'en SB, après sa complète : BB shove', T_SLS: 'en SB, après son raise : shove du BTN (BB fold)' });
+            T_LCS: 'après son limp : SB complète, BB shove', T_SCS: 'en SB, après sa complète : BB shove', T_SLS: 'en SB, après son raise : shove du BTN (BB fold)',
+            T_BRC: 'en BB, BTN min-raise + SB call', T_RCS: 'après son min-raise payé par la SB : BB shove', T_SCB: 'en SB, après avoir payé le min-raise : BB shove (BTN fold)', T_SCBC: 'en SB, après avoir payé le min-raise : BB shove + BTN call' });
         PF_NODE.T_BL = 'en BB, BTN limp + SB fold';
-        const PF3_NODES = { BTN: ['T_SAI', 'T_SR', 'T_SL', 'T_BAIF', 'T_BAIC', 'T_BRS', 'T_BRF', 'T_BL', ['T_B4', 'T_BRF', 'raise'], 'T_BLC', 'T_BLS', 'T_BLR', ['T_SRS', 'T_SL', 'raise'], ['T_SRF', 'T_SL', 'raise'], ['T_SLS', 'T_SL', 'raise'], ['T_SCS', 'T_SL', 'call'], ['T_BRL', 'T_BL', 'raise']],
-            SB: ['T_O', ['T_RSF', 'T_O', 'raise'], ['T_RSC', 'T_O', 'raise'], 'T_BAIC', 'T_BAIF', 'T_BRS', 'T_BRF', 'T_BLC', 'T_BLS', 'T_BLR', ['T_LSC', 'T_O', 'limp'], ['T_LSF', 'T_O', 'limp'], ['T_LRS', 'T_O', 'limp'], ['T_LRC', 'T_O', 'limp'], ['T_LRF', 'T_O', 'limp'], ['T_LCS', 'T_O', 'limp']],
-            BB: ['T_O', ['T_RSC', 'T_O', 'raise'], ['T_RFS', 'T_O', 'raise'], ['T_RF3', 'T_O', 'raise'], 'T_SAI', 'T_SR', 'T_SL', ['T_LSC', 'T_O', 'limp'], ['T_LRS', 'T_O', 'limp'], ['T_LRC', 'T_O', 'limp'], ['T_LBS', 'T_O', 'limp'], ['T_LBR', 'T_O', 'limp'], ['T_LCS', 'T_O', 'limp'], ['T_SRS', 'T_SL', 'raise'], ['T_SRF', 'T_SL', 'raise'], ['T_SCS', 'T_SL', 'call']] };
+        const PF3_NODES = { BTN: ['T_SAI', 'T_SR', 'T_SL', 'T_BAIF', 'T_BAIC', 'T_BRS', 'T_BRF', 'T_BL', ['T_B4', 'T_BRF', 'raise'], 'T_BLC', 'T_BLS', 'T_BLR', ['T_SRS', 'T_SL', 'raise'], ['T_SRF', 'T_SL', 'raise'], ['T_SLS', 'T_SL', 'raise'], ['T_SCS', 'T_SL', 'call'], ['T_BRL', 'T_BL', 'raise'], 'T_BRC', ['T_SCB', 'T_SR', 'call'], ['T_SCBC', 'T_SR', 'call']],
+            SB: ['T_O', ['T_RSF', 'T_O', 'raise'], ['T_RSC', 'T_O', 'raise'], 'T_BAIC', 'T_BAIF', 'T_BRS', 'T_BRF', 'T_BLC', 'T_BLS', 'T_BLR', ['T_LSC', 'T_O', 'limp'], ['T_LSF', 'T_O', 'limp'], ['T_LRS', 'T_O', 'limp'], ['T_LRC', 'T_O', 'limp'], ['T_LRF', 'T_O', 'limp'], ['T_LCS', 'T_O', 'limp'], 'T_BRC', ['T_RCS', 'T_O', 'raise']],
+            BB: ['T_O', ['T_RSC', 'T_O', 'raise'], ['T_RFS', 'T_O', 'raise'], ['T_RF3', 'T_O', 'raise'], 'T_SAI', 'T_SR', 'T_SL', ['T_LSC', 'T_O', 'limp'], ['T_LRS', 'T_O', 'limp'], ['T_LRC', 'T_O', 'limp'], ['T_LBS', 'T_O', 'limp'], ['T_LBR', 'T_O', 'limp'], ['T_LCS', 'T_O', 'limp'], ['T_SRS', 'T_SL', 'raise'], ['T_SRF', 'T_SL', 'raise'], ['T_SCS', 'T_SL', 'call'], ['T_RCS', 'T_O', 'raise'], ['T_SCB', 'T_SR', 'call'], ['T_SCBC', 'T_SR', 'call']] };
         const pfPriorVec = (id, acts) => { const s = pfStr(), P = {}; acts.forEach(a => P[a] = new Float64Array(169)); for (let i = 0; i < 169; i++) { let z = 0; acts.forEach(a => z += pfPrior(id, a, s[i])); acts.forEach(a => P[a][i] = pfPrior(id, a, s[i]) / z); } return P; };
         // tgs = { BTN, SB, BB } : qui est assis à chaque place (field, joueur, profil, théorie)
         function pf3Model(hero, tgs, me, S) {
@@ -7928,7 +7937,7 @@
         }
         function pf3EV(k, S, Q, only) {
             const g = gto(), W = g.W, EQ = g.EQ, n = 169, C = PF_CFG, R = C.R, T = C.T, canR = R < S, canT = T < .5 * S, sit = PF_SIT[k], kk = C.k, Ls = C.Ls || 2.5, Lb = C.Lb || 3, canLs = Ls < S, canLb = Lb < S;
-            if (['T3RSF', 'T3RSC', 'T3RFS', 'T3RF3', 'T3SvR', 'T3XvR', 'T3XvRS', 'T3X3S'].includes(k) && !canR) return null; if ((k === 'T3RF3' || k === 'T3X3S') && !canT) return null;
+            if (['T3RSF', 'T3RSC', 'T3RFS', 'T3RF3', 'T3SvR', 'T3XvR', 'T3XvRS', 'T3X3S', 'T3RCB', 'T3RCBC', 'T3RCS', 'T3XvRC'].includes(k) && !canR) return null; if ((k === 'T3RF3' || k === 'T3X3S') && !canT) return null;
             if (['T3SRF', 'T3SRS', 'T3SLS', 'T3LRF', 'T3LRC', 'T3LRS', 'T3XvLR'].includes(k) && !canLs) return null; if ((k === 'T3XRL' || k === 'T3LBR') && !canLb) return null;
             const acts = sit.acts.filter(a => a !== 'raise' || (k === 'T3XvR' ? canT : k === 'T3SvL' ? canLs : k === 'T3XvL' || k === 'T3XvLC' ? canLb : canR)), ev = {}; acts.forEach(a => ev[a] = new Float64Array(n).fill(NaN)); const mass = new Float64Array(n);
             const mul = (a, b) => { const x = new Float64Array(n); if (!a || !b) return x; for (let j = 0; j < n; j++) x[j] = a[j] * b[j]; return x; }, one = new Float64Array(n).fill(1), e3 = (a, b) => Math.pow(Math.max(1e-6, a * b), .79), mx = Math.max, S2 = 2 * S, S3 = 3 * S;
@@ -7938,18 +7947,22 @@
                 ck: q('T_BLC').check, cs: q('T_BLC').shove, cr: q('T_BLC').raise, scs: mul(q('T_SL').call, q('T_SCS').call), rf: q('T_BLR').fold, rc: q('T_BLR').call, rs: q('T_BLR').shove, slsc: mul(q('T_SL').raise, q('T_SLS').call), srsc: mul(q('T_SL').raise, q('T_SRS').call), bsc: q('T_BLS').call });
             const L3S = () => { const u = q('T_O').limp; return { u, ck: q('T_BLC').check, cs: q('T_BLC').shove, cr: q('T_BLC').raise, tcs: mul(u, q('T_LCS').call), rf: q('T_BLR').fold, rc: q('T_BLR').call, rs: q('T_BLR').shove, tfc: mul(u, q('T_LRF').call), tfs: mul(u, q('T_LRF').shove), tcc: mul(u, q('T_LRC').call), tcs2: mul(u, q('T_LRC').shove), tsc: mul(u, q('T_LRS').call), bsc: q('T_BLS').call, tlf: mul(u, q('T_LSF').call), tlc: mul(u, q('T_LSC').call) }; };
             const L3X = () => { const u = q('T_O').limp, sc = q('T_SL').call, sr = q('T_SL').raise; return { u, sf: q('T_SL').fold, sc, ss: q('T_SL').shove, sr, lbs: mul(u, q('T_LBS').call), lbrc: mul(u, q('T_LBR').call), lbrs: mul(u, q('T_LBR').shove), lcs: mul(u, q('T_LCS').call), scs: mul(sc, q('T_SCS').call), lsc: mul(u, q('T_LSC').call), lrcC: mul(u, q('T_LRC').call), lrcS: mul(u, q('T_LRC').shove), lrs: mul(u, q('T_LRS').call), srf: mul(sr, q('T_SRF').call), srs: mul(sr, q('T_SRS').call) }; };
-            if (k === 'T3O') rng = { sc: q('T_SAI').call, bf: q('T_BAIF').call, bc: q('T_BAIC').call, srf: q('T_SR').fold, src: q('T_SR').call, srs: q('T_SR').shove, rff: q('T_BRF').fold, rfc: q('T_BRF').call, rf3: q('T_BRF').raise, rf3c: mul(q('T_BRF').raise, q('T_B4').call), rfs: q('T_BRF').shove, rsc: q('T_BRS').call, ...L3B() };
+            const RC = () => ({ bcf: q('T_BRC').fold, bcc: q('T_BRC').call, bcs: q('T_BRC').shove });
+            if (k === 'T3O') rng = { ...RC(), scbc: mul(q('T_SR').call, q('T_SCBC').call), sc: q('T_SAI').call, bf: q('T_BAIF').call, bc: q('T_BAIC').call, srf: q('T_SR').fold, src: q('T_SR').call, srs: q('T_SR').shove, rff: q('T_BRF').fold, rfc: q('T_BRF').call, rf3: q('T_BRF').raise, rf3c: mul(q('T_BRF').raise, q('T_B4').call), rfs: q('T_BRF').shove, rsc: q('T_BRS').call, ...L3B() };
             else if (/^T3L/.test(k)) rng = L3B();
             else if (k === 'T3SvL' || k === 'T3SRF' || k === 'T3SRS' || k === 'T3SCF' || k === 'T3SCC' || k === 'T3SLS') rng = L3S();
             else if (k === 'T3XvL' || k === 'T3XvLC' || k === 'T3XvLS' || k === 'T3XvLR' || k === 'T3XRL') rng = L3X();
             else if (k === 'T3RSF' || k === 'T3RSC') rng = { srs: q('T_SR').shove, rsc: q('T_BRS').call };
             else if (k === 'T3RFS') rng = { u: q('T_BRF').shove }; else if (k === 'T3RF3') rng = { u: q('T_BRF').raise, c4: mul(q('T_BRF').raise, q('T_B4').call) };
             else if (k === 'T3SvS') rng = { u: q('T_O').shove, bc: q('T_BAIC').call };
-            else if (k === 'T3SvR') rng = { u: q('T_O').raise, brs: q('T_BRS').call, tf: mul(q('T_O').raise, q('T_RSF').call), tc: mul(q('T_O').raise, q('T_RSC').call), rff: q('T_BRF').fold, rfc: q('T_BRF').call, rfr: q('T_BRF').raise, rfs: q('T_BRF').shove };
+            else if (k === 'T3SvR') rng = { ...RC(), tcs: mul(q('T_O').raise, q('T_RCS').call), u: q('T_O').raise, brs: q('T_BRS').call, tf: mul(q('T_O').raise, q('T_RSF').call), tc: mul(q('T_O').raise, q('T_RSC').call), rff: q('T_BRF').fold, rfc: q('T_BRF').call, rfr: q('T_BRF').raise, rfs: q('T_BRF').shove };
             else if (k === 'T3XvS') rng = { u: q('T_O').shove }; else if (k === 'T3XvSC') rng = { u: q('T_O').shove, sc: q('T_SAI').call };
             else if (k === 'T3XvR') rng = { u: q('T_O').raise, sf: q('T_SR').fold, tf: mul(q('T_O').raise, q('T_RF3').fold), tc: mul(q('T_O').raise, q('T_RF3').call), ts: mul(q('T_O').raise, q('T_RF3').shove), rc: mul(q('T_O').raise, q('T_RFS').call) };
             else if (k === 'T3XvRS') rng = { u: q('T_O').raise, ss: q('T_SR').shove, tc: mul(q('T_O').raise, q('T_RSC').call) };
             else if (k === 'T3X3S') rng = { u: mul(q('T_O').raise, q('T_RF3').shove) };
+            else if (k === 'T3XvRC') rng = { u: q('T_O').raise, sc: q('T_SR').call, tcs: mul(q('T_O').raise, q('T_RCS').call), scb: mul(q('T_SR').call, q('T_SCB').call), scbc: mul(q('T_SR').call, q('T_SCBC').call) };
+            else if (k === 'T3RCS') rng = { bs: q('T_BRC').shove, sc: q('T_SR').call, scc: mul(q('T_SR').call, q('T_SCBC').call) };
+            else if (k === 'T3RCB' || k === 'T3RCBC') rng = { bs: q('T_BRC').shove, u: q('T_O').raise, tf: mul(q('T_O').raise, q('T_RCS').fold), tc: mul(q('T_O').raise, q('T_RCS').call) };
             for (const key of Object.keys(rng)) if (!rng[key]) rng[key] = new Float64Array(n);
             // stacks réels (Mode table, review) : tapis effectif par adversaire, pot secondaire quand les trois sont à tapis
             // les suites après le limp sont les mêmes pour toutes les situations d'un même siège : calculées une fois par main, partagées (Mode table : 8 situations BTN, 6 SB)
@@ -7992,7 +8005,8 @@
                     if (canR) { const [pSf] = P(rng.srf), [pSc, eSc] = P(rng.src), [pSs, eSs] = P(rng.srs), [pf] = P(rng.rff), [pc, ec] = P(rng.rfc), [p3, e3b] = P(rng.rf3), [p3c, e3c] = P(rng.rf3c), [ps, es] = P(rng.rfs), [pr, er] = P(rng.rsc);
                         const F = pf * 1.5 + pc * (rz(C.ipR, ec) * ec * (2 * R + .5) - R) + (canT ? mx(-R * p3, p3 * (rz(C.ipR, e3b) * e3b * (2 * T + .5) - T), (p3 - p3c) * (T + .5) + p3c * AI(e3c, 'BB', .5)) : mx(-R * p3, p3 * AI(e3b, 'BB', .5))) + mx(-R * ps, ps * AI(es, 'BB', .5));
                         const Sb = (1 - pr) * mx(-R, AI(eSs, 'SB', 1)) + pr * mx(-R, A3(eSs, er, 'SB', 'BB', 'SB'));
-                        const Cb = pf * (rz(C.ipR, eSc) * eSc * (2 * R + 1) - R) + pc * (rz(C.ipR, e3(eSc, ec)) * .9 * e3(eSc, ec) * 3 * R - R) + mx(-R * (p3 + ps), p3 * AI(e3b, 'BB', R) + ps * AI(es, 'BB', R));
+                        const [qf] = P(rng.bcf), [qc, eqc] = P(rng.bcc), [qs, eqs] = P(rng.bcs), [pcc, ecc] = P(rng.scbc), sC = pSc > 1e-9 ? Math.min(1, pcc / pSc) : 0, e3q = e3(eSc, eqc), RCS = (1 - sC) * AI(eqs, 'BB', R) + sC * A3(eqs, ecc, 'BB', 'SB', 'BB');
+                        const Cb = qf * (rz(C.ipR, eSc) * eSc * (2 * R + 1) - R) + qc * (rz(C.ipR, e3q) * .9 * e3q * 3 * R - R) + qs * mx(-R, RCS);
                         ev.raise[i] = pSf * F + pSs * Sb + pSc * Cb; }
                     ev.limp[i] = btnL().limp; }
                 else if (/^T3L/.test(k)) { const b = btnL(), MS = { T3LSF: b.mSs * (1 - b.bc), T3LSC: b.mSs * b.bc, T3LRF: b.mSr * b.rf, T3LRC: b.mSr * b.rc, T3LRS: b.mSr * b.rs, T3LCS: b.mSc * b.cs, T3LBS: b.mSf * b.bs, T3LBR: b.mSf * b.br }[k]; if (!(MS > 0)) continue; mass[i] = MS; ev.fold[i] = -1;
@@ -8008,12 +8022,18 @@
                 else if (k === 'T3SvS') { const [, eT, m] = P(rng.u), [pB, eB] = P(rng.bc); if (!m) continue; mass[i] = m; ev.fold[i] = -.5; ev.call[i] = (1 - pB) * AI(eT, 'BTN', 1) + pB * A3(eT, eB, 'BTN', 'BB', 'BTN'); }
                 else if (k === 'T3SvR') { const [pT, eT, m] = P(rng.u); if (!m) continue; mass[i] = m; const [pB, eB] = P(rng.brs), [ptf, etf] = P(rng.tf), [ptc, etc] = P(rng.tc), cf = ptf / pT, cc = ptc / pT, [pf] = P(rng.rff), [pc, ec] = P(rng.rfc), [pr3, er3] = P(rng.rfr), [prs, ers] = P(rng.rfs);
                     ev.fold[i] = -.5; ev.shove[i] = (1 - pB) * ((1 - cf) * (R + 1) + cf * AI(etf, 'BTN', 1)) + pB * ((1 - cc) * AI(eB, 'BB', R) + cc * A3(etc, eB, 'BTN', 'BB'));
-                    ev.call[i] = pf * (rz(C.oopR, eT) * eT * (2 * R + 1) - R) + pc * (rz(C.oopR, e3(eT, ec)) * .85 * e3(eT, ec) * 3 * R - R) + mx(-R * (pr3 + prs), pr3 * AI(er3, 'BB', R) + prs * AI(ers, 'BB', R)); }
+                    { const [qf] = P(rng.bcf), [qc, eqc] = P(rng.bcc), [qs, eqs] = P(rng.bcs), [ptc, etc2] = P(rng.tcs), cT = pT > 1e-9 ? Math.min(1, ptc / pT) : 0, e3q = e3(eT, eqc);
+                        ev.call[i] = qf * (rz(C.oopR, eT) * eT * (2 * R + 1) - R) + qc * (rz(C.oopR, e3q) * .85 * e3q * 3 * R - R) + qs * ((1 - cT) * mx(-R, AI(eqs, 'BB', R)) + cT * mx(-R, A3(eqs, etc2, 'BB', 'BTN', 'BB'))); } }
                 else if (k === 'T3XvS') { const [, e, m] = P(rng.u); if (!m) continue; mass[i] = m; ev.fold[i] = -1; ev.call[i] = AI(e, 'BTN', .5); }
                 else if (k === 'T3XvSC') { const [, eT, m] = P(rng.u), [pS, eS] = P(rng.sc); if (!m) continue; mass[i] = m * pS; ev.fold[i] = -1; ev.call[i] = A3(eT, eS, 'BTN', 'SB', 'BTN'); }
                 else if (k === 'T3XvR') { const [pT, eT, m] = P(rng.u); if (!m) continue; const [pSf] = P(rng.sf); mass[i] = m * pSf; const [ptf] = P(rng.tf), [ptc, etc] = P(rng.tc), [pts, ets] = P(rng.ts), [prc, erc] = P(rng.rc), f = ptf / pT, c = ptc / pT, s = pts / pT, cr = prc / pT;
                     ev.fold[i] = -1; ev.call[i] = rz(C.oopR, eT) * eT * (2 * R + .5) - R; ev.shove[i] = (1 - cr) * (R + .5) + cr * AI(erc, 'BTN', .5);
                     if (canT) ev.raise[i] = f * (R + .5) + c * (rz(C.oopR, etc) * etc * (2 * T + .5) - T) + mx(-T * s, s * AI(ets, 'BTN', .5)); }
+                else if (k === 'T3XvRC') { const [pT, eT, m] = P(rng.u); if (!m) continue; const [pS, eS] = P(rng.sc); if (pS <= 1e-9) continue; mass[i] = m * pS; const [ptc, etc2] = P(rng.tcs), [ps1, es1] = P(rng.scb), [ps2, es2] = P(rng.scbc), cT = Math.min(1, ptc / pT), s1 = Math.min(1, ps1 / pS), s2 = Math.min(1, ps2 / pS), e3c = e3(eT, eS);
+                    ev.fold[i] = -1; ev.call[i] = rz(C.oopR, e3c) * .85 * e3c * 3 * R - R; ev.shove[i] = (1 - cT) * ((1 - s1) * 2 * R + s1 * AI(es1, 'SB', R)) + cT * ((1 - s2) * AI(etc2, 'BTN', R) + s2 * A3(etc2, es2, 'BTN', 'SB')); }
+                else if (k === 'T3RCS') { const [, eB, mB] = P(rng.bs); if (!mB) continue; const [pS] = P(rng.sc), [pc2, ec2] = P(rng.scc); mass[i] = mB * Math.max(pS, 1e-6); const s2 = pS > 1e-9 ? Math.min(1, pc2 / pS) : 0; ev.fold[i] = -R; ev.call[i] = (1 - s2) * AI(eB, 'BB', R) + s2 * A3(eB, ec2, 'BB', 'SB', 'BB'); }
+                else if (k === 'T3RCB' || k === 'T3RCBC') { const [, eB, mB] = P(rng.bs); if (!mB) continue; const [pT] = P(rng.u), [ptf] = P(rng.tf), [ptc, etc2] = P(rng.tc); const w = pT > 1e-9 ? (k === 'T3RCB' ? ptf : ptc) / pT : 0; mass[i] = mB * Math.max(w, 1e-6);
+                    ev.fold[i] = -R; ev.call[i] = k === 'T3RCB' ? AI(eB, 'BB', R) : A3(eB, etc2, 'BB', 'BTN', 'BB'); }
                 else if (k === 'T3XvRS') { const [pT, , m] = P(rng.u), [pS, eS] = P(rng.ss), [ptc, etc] = P(rng.tc); if (!m) continue; mass[i] = m * pS; const c = ptc / pT; ev.fold[i] = -1; ev.call[i] = (1 - c) * AI(eS, 'SB', R) + c * A3(eS, etc, 'SB', 'BTN', 'SB'); }
                 else if (k === 'T3X3S') { const [, e, m] = P(rng.u); if (!m) continue; mass[i] = m; ev.fold[i] = -T; ev.call[i] = AI(e, 'BTN', .5); }
                 else if (k === 'T3XvL' || k === 'T3XRL') { const b = bbL(); if (!b) continue; const { eT, m, cd } = b, [pSf] = P(rng.sf), [c, etl] = cd(rng.lbs), [c1, e1] = cd(rng.lbrc), [c2, e2] = cd(rng.lbrs);
@@ -8040,12 +8060,12 @@
             const nm = p => mtShort(mtLab(tgs[p], hero), 10), g0 = {}; ['BTN', 'SB', 'BB'].forEach(p => g0[p] = p === me ? 'f' : 'g');
             const M = pf3Model(hero, tgs, me, S), M0 = pf3Model(hero, g0, me, S);
             const rs = 'raise ' + String(PF_CFG.Ls).replace('.', ','), rb = 'raise ' + String(PF_CFG.Lb).replace('.', ',');
-            const L = me === 'BTN' ? [['T3O', 'J’ouvre'], ['T3RSF', 'Je min-raise, SB shove'], ['T3RSC', 'Je min-raise, SB shove + BB call'], ['T3RFS', 'Je min-raise, BB shove'], ['T3RF3', 'Je min-raise, BB 3-bet'],
+            const L = me === 'BTN' ? [['T3O', 'J’ouvre'], ['T3RSF', 'Je min-raise, SB shove'], ['T3RSC', 'Je min-raise, SB shove + BB call'], ['T3RFS', 'Je min-raise, BB shove'], ['T3RF3', 'Je min-raise, BB 3-bet'], ['T3RCS', 'Je min-raise, SB call, BB shove'],
                     ['T3LSF', 'Je limpe, SB shove'], ['T3LSC', 'Je limpe, SB shove + BB call'], ['T3LRF', `Je limpe, SB ${rs}`], ['T3LRC', `Je limpe, SB ${rs} + BB call`], ['T3LRS', `Je limpe, SB ${rs} + BB shove`], ['T3LCS', 'Je limpe, SB complète, BB shove (estimé)'], ['T3LBS', 'Je limpe, SB fold, BB shove'], ['T3LBR', `Je limpe, SB fold, BB ${rb}`]]
-                : me === 'SB' ? [['T3SvS', `BTN ${nm('BTN')} shove`], ['T3SvR', `BTN ${nm('BTN')} min-raise`], ['T3SvL', `BTN ${nm('BTN')} limpe`], ['T3SRF', `BTN limpe, je ${rs}, BB shove`], ['T3SRS', `BTN limpe, je ${rs}, BB shove + BTN call`], ['T3SLS', `BTN limpe, je ${rs}, BB fold, BTN shove (estimé)`], ['T3SCF', 'BTN limpe, je complète, BB shove (estimé)'], ['T3SCC', 'BTN limpe, je complète, BB shove + BTN call (estimé)']]
-                : [['T3XvS', `BTN ${nm('BTN')} shove`], ['T3XvSC', `BTN shove + SB call`], ['T3XvR', `BTN ${nm('BTN')} min-raise`], ['T3XvRS', `BTN min-raise + SB shove`], ['T3X3S', 'Je 3-bet, BTN shove'], ['T3XvL', 'BTN limpe, SB fold'], ['T3XvLC', 'BTN limpe, SB complète'], ['T3XvLS', 'BTN limpe, SB shove'], ['T3XvLR', `BTN limpe, SB ${rs}`], ['T3XRL', `BTN limpe, SB fold, je ${rb}, BTN shove`]];
+                : me === 'SB' ? [['T3SvS', `BTN ${nm('BTN')} shove`], ['T3SvR', `BTN ${nm('BTN')} min-raise`], ['T3RCB', 'BTN min-raise, je paie, BB shove (BTN fold)'], ['T3RCBC', 'BTN min-raise, je paie, BB shove + BTN call'], ['T3SvL', `BTN ${nm('BTN')} limpe`], ['T3SRF', `BTN limpe, je ${rs}, BB shove`], ['T3SRS', `BTN limpe, je ${rs}, BB shove + BTN call`], ['T3SLS', `BTN limpe, je ${rs}, BB fold, BTN shove (estimé)`], ['T3SCF', 'BTN limpe, je complète, BB shove (estimé)'], ['T3SCC', 'BTN limpe, je complète, BB shove + BTN call (estimé)']]
+                : [['T3XvS', `BTN ${nm('BTN')} shove`], ['T3XvSC', `BTN shove + SB call`], ['T3XvR', `BTN ${nm('BTN')} min-raise`], ['T3XvRS', `BTN min-raise + SB shove`], ['T3XvRC', `BTN min-raise + SB call`], ['T3X3S', 'Je 3-bet, BTN shove'], ['T3XvL', 'BTN limpe, SB fold'], ['T3XvLC', 'BTN limpe, SB complète'], ['T3XvLS', 'BTN limpe, SB shove'], ['T3XvLR', `BTN limpe, SB ${rs}`], ['T3XRL', `BTN limpe, SB fold, je ${rb}, BTN shove`]];
             // calcul à la demande : la grille d'une situation n'est calculée que quand tu l'ouvres (la ligne d'action n'a besoin que des chemins)
-            const st0 = _pf3St ? { ..._pf3St } : null, X0 = _pfX, C = PF_CFG, ok = k => { if (['T3RSF', 'T3RSC', 'T3RFS', 'T3RF3', 'T3SvR', 'T3XvR', 'T3XvRS', 'T3X3S'].includes(k) && !(C.R < S)) return false; if ((k === 'T3RF3' || k === 'T3X3S') && !(C.T < .5 * S)) return false;
+            const st0 = _pf3St ? { ..._pf3St } : null, X0 = _pfX, C = PF_CFG, ok = k => { if (['T3RSF', 'T3RSC', 'T3RFS', 'T3RF3', 'T3SvR', 'T3XvR', 'T3XvRS', 'T3X3S', 'T3RCB', 'T3RCBC', 'T3RCS', 'T3XvRC'].includes(k) && !(C.R < S)) return false; if ((k === 'T3RF3' || k === 'T3X3S') && !(C.T < .5 * S)) return false;
                 if (['T3SRF', 'T3SRS', 'T3SLS', 'T3LRF', 'T3LRC', 'T3LRS', 'T3XvLR'].includes(k) && !(C.Ls < S)) return false; if ((k === 'T3XRL' || k === 'T3LBR') && !(C.Lb < S)) return false; return true; };
             return L.filter(([k]) => ok(k)).map(([k, l]) => { const it = { id: 'pf:t' + k, lab: l, lz: 1 }; let done = false, val = null;
                 Object.defineProperty(it, 'pf', { enumerable: true, get() { if (done) return val; done = true; const a = _pf3St, b = _pfX; _pf3St = st0; _pfX = X0;
@@ -8121,7 +8141,7 @@
             T3O: () => [], T3RSF: () => [['BTN', 'raise', 'min-raise'], ['SB', 'shove'], ['BB', 'fold']], T3RSC: () => [['BTN', 'raise', 'min-raise'], ['SB', 'shove'], ['BB', 'call']],
             T3RFS: () => [['BTN', 'raise', 'min-raise'], ['SB', 'fold'], ['BB', 'shove']], T3RF3: () => [['BTN', 'raise', 'min-raise'], ['SB', 'fold'], ['BB', 'raise', '3-bet']],
             T3SvS: () => [['BTN', 'shove']], T3SvR: () => [['BTN', 'raise', 'min-raise']], T3SvL: () => [['BTN', 'limp']],
-            T3XvS: () => [['BTN', 'shove'], ['SB', 'fold']], T3XvSC: () => [['BTN', 'shove'], ['SB', 'call']], T3XvR: () => [['BTN', 'raise', 'min-raise'], ['SB', 'fold']], T3XvRS: () => [['BTN', 'raise', 'min-raise'], ['SB', 'shove']],
+            T3XvS: () => [['BTN', 'shove'], ['SB', 'fold']], T3XvSC: () => [['BTN', 'shove'], ['SB', 'call']], T3XvR: () => [['BTN', 'raise', 'min-raise'], ['SB', 'fold']], T3XvRS: () => [['BTN', 'raise', 'min-raise'], ['SB', 'shove']], T3XvRC: () => [['BTN', 'raise', 'min-raise'], ['SB', 'call']], T3RCS: () => [['BTN', 'raise', 'min-raise'], ['SB', 'call'], ['BB', 'shove']], T3RCB: () => [['BTN', 'raise', 'min-raise'], ['SB', 'call'], ['BB', 'shove'], ['BTN', 'fold']], T3RCBC: () => [['BTN', 'raise', 'min-raise'], ['SB', 'call'], ['BB', 'shove'], ['BTN', 'call']],
             T3X3S: () => [['BTN', 'raise', 'min-raise'], ['SB', 'fold'], ['BB', 'raise', '3-bet'], ['BTN', 'shove']], T3XvL: () => [['BTN', 'limp'], ['SB', 'fold']],
             // après le limp du BTN (ta sim « BTN limp ») : raise de la SB à Ls, de la BB à Lb
             T3XvLC: () => [['BTN', 'limp'], ['SB', 'call', 'complète']], T3XvLS: () => [['BTN', 'limp'], ['SB', 'shove']], T3XvLR: () => [['BTN', 'limp'], ['SB', 'raise', mtLs()]], T3XRL: () => [['BTN', 'limp'], ['SB', 'fold'], ['BB', 'raise', mtLb()], ['BTN', 'shove']],
@@ -8469,10 +8489,10 @@
         // --- 68. LE MOTEUR PRÉFLOP HU / BLIND VS BLIND DANS TOUTE L'APP ---
         // Chaque décision préflop de héros en HU (et en 3-way quand le BTN a foldé) devient un « spot pf » : jugé contre ta charte (théorie) et contre le field (modèle ancré sur la charte).
         // Branché sur trSpotOf / trPool / dbAnalyze / dbJudge → review, débrief, analyse 3 min, entraînement, défis, Coach IA, replayer ; plus Leaks, Plans de jeu, Simulateur.
-        const PF_SITOF = { SB: { O: 'O', L_R: 'LI', L_AI: 'LS', R_3B: 'R3', R_AI: 'RS', T_SAI: 'T3SvS', T_SR: 'T3SvR', T_SL: 'T3SvL', T_SRF: 'T3SRF', T_SRS: 'T3SRS', T_SLS: 'T3SLS', T_SCS: 'T3SCF' }, BB: { B_AI: 'vS', B_L: 'vL', B_R: 'vR', B_LS: 'ILS', B_4B: '3S', T_BAIF: 'T3XvS', T_BAIC: 'T3XvSC', T_BRF: 'T3XvR', T_BRS: 'T3XvRS', T_B4: 'T3X3S', T_BL: 'T3XvL', T_BLC: 'T3XvLC', T_BLS: 'T3XvLS', T_BLR: 'T3XvLR', T_BRL: 'T3XRL' },
-            BTN: { T_O: 'T3O', T_RSF: 'T3RSF', T_RSC: 'T3RSC', T_RFS: 'T3RFS', T_RF3: 'T3RF3', T_LSF: 'T3LSF', T_LSC: 'T3LSC', T_LRF: 'T3LRF', T_LRC: 'T3LRC', T_LRS: 'T3LRS', T_LCS: 'T3LCS', T_LBS: 'T3LBS', T_LBR: 'T3LBR' } };
+        const PF_SITOF = { SB: { O: 'O', L_R: 'LI', L_AI: 'LS', R_3B: 'R3', R_AI: 'RS', T_SAI: 'T3SvS', T_SR: 'T3SvR', T_SL: 'T3SvL', T_SRF: 'T3SRF', T_SRS: 'T3SRS', T_SLS: 'T3SLS', T_SCS: 'T3SCF', T_SCB: 'T3RCB', T_SCBC: 'T3RCBC' }, BB: { B_AI: 'vS', B_L: 'vL', B_R: 'vR', B_LS: 'ILS', B_4B: '3S', T_BAIF: 'T3XvS', T_BAIC: 'T3XvSC', T_BRF: 'T3XvR', T_BRS: 'T3XvRS', T_B4: 'T3X3S', T_BL: 'T3XvL', T_BLC: 'T3XvLC', T_BLS: 'T3XvLS', T_BLR: 'T3XvLR', T_BRL: 'T3XRL', T_BRC: 'T3XvRC' },
+            BTN: { T_O: 'T3O', T_RSF: 'T3RSF', T_RSC: 'T3RSC', T_RFS: 'T3RFS', T_RF3: 'T3RF3', T_LSF: 'T3LSF', T_LSC: 'T3LSC', T_LRF: 'T3LRF', T_LRC: 'T3LRC', T_LRS: 'T3LRS', T_LCS: 'T3LCS', T_LBS: 'T3LBS', T_LBR: 'T3LBR', T_RCS: 'T3RCS' } };
         const PF_INV = { fold: 0, check: 1, limp: 2, call: 2, raise: 3, shove: 4 };
-        const PF_SLAB = { T3O: 'j’ouvre', T3RSF: 'j’ai min-raise, SB shove', T3RSC: 'j’ai min-raise, SB shove + BB call', T3RFS: 'j’ai min-raise, BB shove', T3RF3: 'j’ai min-raise, BB 3-bet', T3SvS: 'face au shove du BTN', T3SvR: 'face au min-raise du BTN', T3SvL: 'face au limp du BTN', T3SRF: 'BTN limpe, j’ai relancé, BB shove', T3SRS: 'BTN limpe, j’ai relancé, BB shove + BTN call', T3SLS: 'BTN limpe, j’ai relancé, BTN shove (estimé)', T3SCF: 'BTN limpe, j’ai complété, BB shove (estimé)', T3SCC: 'BTN limpe, j’ai complété, BB shove + BTN call (estimé)',
+        const PF_SLAB = { T3O: 'j’ouvre', T3RSF: 'j’ai min-raise, SB shove', T3RSC: 'j’ai min-raise, SB shove + BB call', T3RFS: 'j’ai min-raise, BB shove', T3RF3: 'j’ai min-raise, BB 3-bet', T3RCS: 'j’ai min-raise, SB call, BB shove', T3RCB: 'j’ai payé le min-raise du BTN, BB shove (BTN fold)', T3RCBC: 'j’ai payé le min-raise du BTN, BB shove + BTN call', T3XvRC: 'BTN min-raise + SB call', T3SvS: 'face au shove du BTN', T3SvR: 'face au min-raise du BTN', T3SvL: 'face au limp du BTN', T3SRF: 'BTN limpe, j’ai relancé, BB shove', T3SRS: 'BTN limpe, j’ai relancé, BB shove + BTN call', T3SLS: 'BTN limpe, j’ai relancé, BTN shove (estimé)', T3SCF: 'BTN limpe, j’ai complété, BB shove (estimé)', T3SCC: 'BTN limpe, j’ai complété, BB shove + BTN call (estimé)',
             T3XvLC: 'BTN limpe, SB complète', T3XvLS: 'BTN limpe, SB shove', T3XvLR: 'BTN limpe, SB relance', T3XRL: 'BTN limpe, j’ai relancé, BTN shove', T3LSF: 'j’ai limpé, SB shove', T3LSC: 'j’ai limpé, SB shove + BB call', T3LRF: 'j’ai limpé, SB relance', T3LRC: 'j’ai limpé, SB relance + BB call', T3LRS: 'j’ai limpé, SB relance + BB shove', T3LCS: 'j’ai limpé, SB complète, BB shove (estimé)', T3LBS: 'j’ai limpé, BB shove', T3LBR: 'j’ai limpé, BB relance', T3XvS: 'face au shove du BTN', T3XvSC: 'BTN shove + SB call', T3XvR: 'face au min-raise du BTN', T3XvRS: 'BTN min-raise + SB shove', T3X3S: 'j’ai 3-bet, BTN shove', T3XvL: 'BTN limpe, SB fold', O: 'j’ouvre', LI: 'j’ai limpé, il iso', LS: 'j’ai limpé, il shove', R3: 'j’ai min-raise, il 3-bet', RS: 'j’ai min-raise, il shove', vS: 'face à son shove', vL: 'face à son limp', vR: 'face à son min-raise', ILS: 'j’ai isolé, il shove', '3S': 'j’ai 3-bet, il shove' };
         let _pfHide = false; const _pfSeqC = new Map();
         function trAg(s) { return s && s.model === 'pf' ? (s.err ? s.dir === 'loose' : PF_INV[s.act] >= 2) : !!s && (s.act === 'push' || s.act === 'call'); }
@@ -8665,7 +8685,7 @@
         const s4Ready = (async () => { try { const d = await localforage.getItem('spin_s4c'); if (d && typeof d === 'object') s4C = d; } catch (e) { } })();
         const s4R = v => Math.max(1.5, Math.round(2 * (+v || 0)) / 2);
         const s4Key = st => ['x', s4R(st.BTN), s4R(st.SB), s4R(st.BB), PF_CFG.ipR, PF_CFG.oopR].join('|');
-        const S4_MAP = { T_O: [0, { F: 'fold', M: 'raise', S: 'shove' }], T_SAI: [1, { F: 'fold', C: 'call' }], T_BAIF: [2, { F: 'fold', C: 'call' }], T_BAIC: [3, { F: 'fold', C: 'call' }], T_SR: [4, { F: 'fold', C: 'call', S: 'shove' }], T_BRF: [5, { F: 'fold', C: 'call', S: 'shove' }], T_RFS: [6, { F: 'fold', C: 'call' }], T_BRS: [11, { F: 'fold', C: 'call' }], T_RSF: [12, { F: 'fold', C: 'call' }], T_RSC: [13, { F: 'fold', C: 'call' }] };
+        const S4_MAP = { T_O: [0, { F: 'fold', M: 'raise', S: 'shove' }], T_SAI: [1, { F: 'fold', C: 'call' }], T_BAIF: [2, { F: 'fold', C: 'call' }], T_BAIC: [3, { F: 'fold', C: 'call' }], T_SR: [4, { F: 'fold', C: 'call', S: 'shove' }], T_BRF: [5, { F: 'fold', C: 'call', S: 'shove' }], T_RFS: [6, { F: 'fold', C: 'call' }], T_BRS: [11, { F: 'fold', C: 'call' }], T_RSF: [12, { F: 'fold', C: 'call' }], T_RSC: [13, { F: 'fold', C: 'call' }], T_BRC: [7, { F: 'fold', C: 'call', S: 'shove' }], T_RCS: [8, { F: 'fold', C: 'call' }], T_SCB: [9, { F: 'fold', C: 'call' }], T_SCBC: [10, { F: 'fold', C: 'call' }] };
         const pfStLab = st => ['BTN', 'SB', 'BB'].map(p => p + ' ' + String(s4R(st[p])).replace('.', ',')).join(' · ');
         // un résultat S4 stocké → probabilités par nœud de l'app
         function s4Node(rec, id) { const m = S4_MAP[id]; if (!m || !rec || !rec.n || !rec.n[m[0]]) return null; const nd = rec.n[m[0]], acts = PF_ACTS[id], P = {}; acts.forEach(a => P[a] = new Float64Array(169));
@@ -8750,6 +8770,10 @@
                 T3RFS: () => [['BB', 1, [V('sa range de shove', 'shove', ['T_BRF', 'shove'])]]],
                 T3RF3: () => [['BB', 1, [V('sa range de 3-bet', 'raise', ['T_BRF', 'raise']), V('paie ton shove', 'call', ['T_BRF', 'raise'], ['T_B4', 'call'])]]],
                 T3SvS: () => [['BTN', 1, [V('sa range de shove', 'shove', ['T_O', 'shove'])]], ['BB', 0, [V('paie derrière si tu paies', 'call', ['T_BAIC', 'call'])]]],
+                T3XvRC: () => [['BTN', 1, [V('sa range de min-raise', 'raise', ['T_O', 'raise']), V('paie ton shove', 'call', ['T_O', 'raise'], ['T_RCS', 'call'])]], ['SB', 1, [V('paie le min-raise', 'call', ['T_SR', 'call']), V('paie ton shove (BTN fold)', 'call', ['T_SR', 'call'], ['T_SCB', 'call'])]]],
+                T3RCS: () => [['BB', 1, [V('sa range de shove', 'shove', ['T_BRC', 'shove'])]], ['SB', 1, [V('paie le min-raise', 'call', ['T_SR', 'call']), V('sur-call derrière', 'call', ['T_SR', 'call'], ['T_SCBC', 'call'])]]],
+                T3RCB: () => [['BB', 1, [V('sa range de shove', 'shove', ['T_BRC', 'shove'])]]],
+                T3RCBC: () => [['BB', 1, [V('sa range de shove', 'shove', ['T_BRC', 'shove'])]], ['BTN', 1, [V('paie le shove', 'call', ['T_O', 'raise'], ['T_RCS', 'call'])]]],
                 T3SvR: () => [['BTN', 1, [V('sa range de min-raise', 'raise', ['T_O', 'raise']), V('paie ton shove', 'call', ['T_O', 'raise'], ['T_RSF', 'call'])]], ['BB', 0, [V('paie ton shove', 'call', ['T_BRS', 'call'])]]],
                 T3SvL: () => [['BTN', 1, [V('sa range de limp', 'limp', ['T_O', 'limp']), V('paie ton shove (BB fold)', 'call', ['T_O', 'limp'], ['T_LSF', 'call']), V('paie ton raise (BB fold)', 'call', ['T_O', 'limp'], ['T_LRF', 'call']), V('shove sur ton raise (BB fold)', 'shove', ['T_O', 'limp'], ['T_LRF', 'shove'])]],
                     ['BB', 0, [V('shove sur ta complète', 'shove', ['T_BLC', 'shove']), V('relance ta complète', 'raise', ['T_BLC', 'raise']), V('paie ton raise', 'call', ['T_BLR', 'call']), V('shove sur ton raise', 'shove', ['T_BLR', 'shove']), V('paie ton shove', 'call', ['T_BLS', 'call'])]]],
@@ -10462,7 +10486,9 @@
         { const _pcS = pfChart; pfChart = function (fmt, S, id) {
             if (fmt !== '3M' || !_pfX || !_pfX.P[id] || SLV.prio === 'solver') return _pcS.apply(this, arguments);
             const X = _pfX; _pfX = null; let base; try { base = _pcS(fmt, S, id); } finally { _pfX = X; }
-            if (SLV.prio === 'chart') return base;
+            if (SLV.prio === 'chart' && base.src !== 'aucune charte') return base;
+            // nœud absent de ta charte (ex. BTN min-raise payé par la SB) : le solveur aux stacks exacts tel quel
+            if (base.src === 'aucune charte') return { ...X.P[id], src: 'solveur 3-way aux stacks exacts (nœud absent de ta charte)' };
             const ck = X.key + '|' + S + '|' + id; if (_slvMC.has(ck)) return _slvMC.get(ck); const symR = s4C[slvSym(S)];
             if (!symR) return base; const sym = s4Node(symR, id), asym = s4Node(s4C[X.key], id); if (!sym || !asym) return base;
             const r = { P: slvMix(base, asym, sym, id), src: `ta charte ${S} BB corrigée aux stacks exacts (${_pf3St ? pfStLab(_pf3St) : ''})`, exact: base.exact, corr: true }; if (_slvMC.size > 3000) _slvMC.clear(); _slvMC.set(ck, r); return r; }; }
@@ -10472,17 +10498,20 @@
             const st = { BTN: h.stacks[so.btn] / bb, SB: h.stacks[so.sb] / bb, BB: h.stacks[so.bb] / bb }, key = s4Key(st), rec = s4C[key]; if (!rec || !S4_MAP[node]) return null;
             const me = PF_OWN[node] || 'BTN', E = Math.min(st[me], Math.max(...['BTN', 'SB', 'BB'].filter(p => p !== me).map(p => st[p]))), S = Math.max(1, Math.min(25, Math.round(E))), symR = s4C[slvSym(S)]; if (!symR) return null;
             const X = _pfX; _pfX = null; let base; try { base = pfChart('3M', S, node); } finally { _pfX = X; }
+            if (base.src === 'aucune charte') { const asym0 = s4Node(rec, node); return asym0 ? { P: asym0, src: `solveur 3-way aux stacks exacts ${pfStLab(st)} (nœud absent de ta charte)`, exact: true } : null; }
             const sym = s4Node(symR, node), asym = s4Node(rec, node); if (!sym || !asym) return null;
             return { P: slvMix(base, asym, sym, node), src: `ta charte ${S} BB corrigée aux stacks exacts ${pfStLab(st)}`, exact: true }; }; }
 
         // ---- calcul en lot : configurations de stacks relevées dans tes HH ----
+        // un calcul stocké avant l'ajout des nœuds « SB paie » (7 à 10) est à compléter
+        const slvFull = rec => !!(rec && rec.n && rec.n[7] && rec.n[8] && rec.n[9] && rec.n[10]);
         function slvNeed() {
             const K = new Map(); allParsedHands.forEach(h => { if (h.buyin === 0 || h.players.length !== 3) return; const so = trSeatOrder(h), bb = bbOf(h); if (!so.btn || !bb) return;
                 const st = { BTN: h.stacks[so.btn] / bb, SB: h.stacks[so.sb] / bb, BB: h.stacks[so.bb] / bb }, E = Math.min(st.BTN, Math.max(st.SB, st.BB)); if (E > 25.5) return;
                 const k = s4Key(st), o = K.get(k) || { k, st, n: 0, sym: false }; o.n++; K.set(k, o); });
             const sym = []; for (let S = 2; S <= 25; S++) { const k = slvSym(S); sym.push({ k, st: { BTN: S, SB: S, BB: S }, n: 1e9, sym: true }); }
             const all = [...sym, ...[...K.values()].filter(o => !sym.some(s => s.k === o.k) && o.n >= SLV.minN).sort((a, b) => b.n - a.n)];
-            const todo = all.filter(o => !s4C[o.k]); return { all, todo, seen: K.size, cover: [...K.values()].filter(o => s4C[o.k]).reduce((a, o) => a + o.n, 0), hands: [...K.values()].reduce((a, o) => a + o.n, 0) };
+            const todo = all.filter(o => !s4C[o.k] || !slvFull(s4C[o.k])); return { all, todo, seen: K.size, cover: [...K.values()].filter(o => s4C[o.k]).reduce((a, o) => a + o.n, 0), hands: [...K.values()].reduce((a, o) => a + o.n, 0) };
         }
         async function slvRun(quiet) {
             if (SLV.run || s4Busy) return; await s4Ready; const N = slvNeed(); if (!N.todo.length) { SLV.msg = 'Tout est déjà calculé.'; return slvRender(); }
@@ -11692,7 +11721,7 @@ JSON :`;
                 ev.forEach(e => { if (seen.has(e.p)) return; seen.add(e.p); const eff = fsEff({ h, p: e.p }); if (!ffDepOk(eff)) return; const me = e.p === hero; if (!me) { tagsOf(e.p).forEach(t => refCount[t] = (refCount[t] || 0) + 1); pCount[e.p] = (pCount[e.p] || 0) + 1; } if (!me && !inRef(e.p)) return;
                     let st = 'P'; if (L && L.ord && L.ord.includes(e.p)) { const f = L.E.find(x => x.p === e.p && x.k === 'folds'); st = f ? f.st : ({ 3: 'F', 4: 'T', 5: 'R' })[String(h.board || '').split(' ').filter(Boolean).length] || 'F'; }
                     const opp = h.players.filter(p => p !== e.p), ot = opp.map(p => tagsOf(p)), stk = h.stacks[e.p], mx = Math.max(...opp.map(p => h.stacks[p]));
-                    R.push({ h, p: e.p, me, v: cvVal(h, e.p), eff, fmt, sk: `${fmt}|${e.pos}|${e.ctx}${e.by ? '@' + e.by : ''}`, st, fish: ot.some(t => t.includes('Fish')), regs: ot.length && ot.every(t => t.includes('Reg')), cover: stk >= mx, t0: me ? sesStart.get(h.id) : null }); }); });
+                    R.push({ h, p: e.p, me, v: cvVal(h, e.p), eff, fmt, sk: `${fmt}|${e.pos}|${e.ctx}${e.cc && (e.ctx === 'min' || e.ctx === 'big') ? 'C' : ''}${e.by ? '@' + e.by : ''}`, st, fish: ot.some(t => t.includes('Fish')), regs: ot.length && ot.every(t => t.includes('Reg')), cover: stk >= mx, t0: me ? sesStart.get(h.id) : null }); }); });
             // groupes transversaux
             const G = r => { const g = [r.fmt === 'HU' ? 'Phase heads-up' : 'Phase 3-way', r.eff < 6 ? 'Profondeur < 6 BB' : r.eff < 10 ? 'Profondeur 6–10 BB' : r.eff < 15 ? 'Profondeur 10–15 BB' : 'Profondeur 15 BB +', r.cover ? 'Tu couvres la table' : 'Tu es couvert'];
                 if (r.fish) g.push('Avec un Fish à la table'); if (r.regs) g.push('Uniquement des Reg'); if (r.t0 != null) { const m = (evoT(r.h.ts) - r.t0) / 6e4; g.push(m < 60 ? 'Session : 1re heure' : m < 120 ? 'Session : 2e heure' : 'Session : après 2 h'); } return g; };
@@ -11907,6 +11936,13 @@ onmessage=e=>{const j=e.data;postMessage({key:j.key,r:mc(j.h,j.v,j.b,j.n)});};`;
         // un seul calcul de verdict par affichage (le bandeau et le panneau de droite partagent le même)
         { const _mv = mpVerdict; let last = null; mpVerdict = function (C, hero, st) { if (EQ.prefetch) return _mv.apply(this, arguments); const S = mpS(), k = [st, mtCell, (S.cards || []).join(''), S.l1, S.l2, S.c4, S.c5, C.act, C.p && C.p.k, C.pot, C.eff, MT.sit, JSON.stringify(MT.tg), (MT.st || []).join(','), EQ.ver].join('|');
             if (last && last.k === k) return last.v; const v = _mv.apply(this, arguments); last = { k, v }; return v; }; }
+
+        // ===================== 103. BTN RELANCE, SB PAIE : la suite de la ligne partout dans l'app =====================
+        // fsEvents : nombre de calls depuis la dernière relance (cc) → spot « relance payée » séparé dans l'analyse
+        { const _fe = fsEvents; fsEvents = function (h) { const ev = _fe.apply(this, arguments); let r = 0, c = 0; ev.forEach(e => { e.cc = r ? c : 0; if (e.act === 'raise' || e.act === 'shove') { r++; c = 0; } else if (e.act === 'call' && r) c++; }); return ev; }; }
+        Object.assign(FF_CTX, { minC: 'face au min-raise payé', bigC: 'face à la relance payée' });
+        { const _fl = ffSpotLab; ffSpotLab = function (k) { const [f, pos, rest] = k.split('|'), [ctx, by] = (rest || '').split('@'); if (ctx === 'minC' || ctx === 'bigC') { const caller = ['BTN', 'SB', 'BB'].find(p => p !== pos && p !== by) || 'SB';
+                return `${f === 'HU' ? 'HU' : '3-way'} · ${pos} face au ${ctx === 'minC' ? 'min-raise' : 'raise'} du ${by} payé par ${caller === 'SB' ? 'la SB' : caller === 'BB' ? 'la BB' : 'le BTN'}`; } return _fl.apply(this, arguments); }; }
 
 </script>
 </body>
