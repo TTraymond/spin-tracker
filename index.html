@@ -4477,7 +4477,7 @@
                 <div class="text-xs font-bold text-slate-300 mb-1">Dernières décisions</div><div class="max-h-56 overflow-auto custom-scrollbar border border-white/10 rounded-lg">${recent.map(h => `<div class="flex flex-wrap gap-3 px-3 py-1 text-xs border-b border-white/5"><span class="${h.ok ? 'text-emerald-400' : 'text-rose-400'}">${h.ok ? '✓' : '✗'}</span><span class="w-12 font-bold text-slate-200">${h.hand}</span><span class="text-slate-400 flex-1 min-w-[12rem]">${esc(h.title)}</span><span>toi : <b>${h.choice}</b></span><span>reco : <b>${h.best}</b></span>${h.adapt ? `<span class="text-amber-300">adaptation ${h.followed ? 'appliquée' : 'manquée'}</span>` : ''}${h.ok ? '' : `<span class="text-rose-300">−${String(h.loss.toFixed(2)).replace('.', ',')} BB</span>`}</div>`).join('')}</div>` : '<p class="text-xs text-slate-500">Joue des spots en mode Coach : tes décisions s\'enregistrent ici, par scénario, avec la part des adaptations que tu appliques vraiment.</p>'}</div>`;
             box.innerHTML = scen + sweep + hist;
         }
-        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed', 'lab_cfg', 'lab_srs', 'lab_log', 'lab_coach', 'slv_cfg', 'gtp_db']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
+        async function bkExtra() { const o = {}; for (const k of ['arcade', 'sim_scen', 'sim_hist', 'sim_cfg', 'evo_charts', 'evo_cmp', 'ref3', 'rev_q', 'rev_meta', 'mult_tab', 'var_cfg', 'chantier', 'pl_groups', 'fs_cmp', 'mx_cfg', 'bf_cfg', 'tl_cfg', 'cs_list', 'cs_cfg', 'db_cfg', 'tag_ex', 's3_cfg', 'mt_cfg', 'pf_cfg', 'pf_csv', 'ui_col', 'tx_cfg', 'tg_ui', 'tags_removed', 'lab_cfg', 'lab_srs', 'lab_log', 'lab_coach', 'slv_cfg', 'gtp_db', 'mt_eq']) { try { const v = await localforage.getItem(k); if (v != null) o[k] = v; } catch (e) { } } return o; }
         async function bkRestore(x, merge) {
             for (const k of Object.keys(x || {})) { let v = x[k]; try { const cur = await localforage.getItem(k);
                 if (merge && Array.isArray(cur) && Array.isArray(v)) v = k === 'sim_scen' ? [...cur.filter(c => !v.some(n => n.name === c.name)), ...v] : [...cur, ...v.filter(n => !cur.some(c => c.ts === n.ts && c.hand === n.hand))].sort((a, b) => a.ts - b.ts);
@@ -8247,7 +8247,7 @@
                   <div class="space-y-3">
                     ${MT.big ? `<div class="grid gap-2" style="grid-template-columns:repeat(${n},minmax(0,1fr))">${mtPts().map(([k]) => z('seat' + k)).join('')}</div>`
                     : `<div class="relative w-full rounded-[44%] border-[6px] border-amber-900/70 bg-gradient-to-b from-emerald-800 to-emerald-950" style="aspect-ratio:16/10;${mtFs ? 'max-height:44vh;min-height:240px' : 'max-height:42vh;min-height:250px'}">
-                      <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center text-emerald-100/70 text-xs">Pot 1,5 BB<br>${MT.fmt === 'HU' ? 'heads-up' : '3-way'}</div>
+                      <div class="absolute -translate-x-1/2 -translate-y-1/2 text-center text-emerald-100/70 text-xs pointer-events-none" style="${MT.fmt === 'HU' ? 'left:84%;top:50%;max-width:30%' : 'left:50%;top:56%;max-width:46%'}">${z('felt')}</div>
                       ${mtPts().map(([k]) => z('seat' + k)).join('')}
                     </div>`}
                     <div data-rg="stk" class="flex flex-wrap items-center gap-1.5">${Z.stk}</div>
@@ -11805,6 +11805,108 @@ JSON :`;
             const r = e.target.closest('[data-cv="ref"],[data-tr="ref"]'); if (r) Object.keys(RP).forEach(x => RP[x] = false); }, true);
         document.addEventListener('input', e => { const q = e.target.closest('[data-rpq]'); if (!q) return; const s = q.value.trim().toLowerCase(), L = document.querySelector(`[data-rpl="${q.dataset.rpq}"]`); if (!L) return; let i = 0;
             L.querySelectorAll('[data-n]').forEach(b => { const ok = s ? b.dataset.n.includes(s) : i < 30; b.classList.toggle('hidden', !ok || (s && i >= 60)); if (ok) i++; }); });
+
+        // ===================== 102. MODE TABLE : ÉQUITÉ EN ARRIÈRE-PLAN + BANDEAU SUR LA TABLE =====================
+        // Le calcul d'équité (même simulation qu'avant) part dans un fil séparé ; les résultats sont gardés en mémoire permanente (exportée avec la base).
+        const EQ = { gen: 0, mem: new Map(), pend: new Map(), qHi: [], qLo: [], busy: false, w: null, ver: 0, dirty: false, pauseUntil: 0, prep: null, worker: true };
+        const EQ_SRC = `const SU={c:0,d:1,h:2,s:3},RK='23456789TJQKA',pk=x=>[RK.indexOf(x[0]),x[1]],D=[];for(const r of RK)for(const s of 'cdhs')D.push(r+s);
+const st=m=>{const m2=(m<<1)|((m>>12)&1);for(let t=13;t>=4;t--)if(((m2>>(t-4))&31)===31)return t-1;return -1;};
+function ev7(c){const rc=new Array(13).fill(0),sc=[0,0,0,0],sm=[0,0,0,0];for(let i=0;i<7;i++){const r=c[i][0],si=SU[c[i][1]];rc[r]++;sc[si]++;sm[si]|=1<<r;}const fs=sc.findIndex(x=>x>=5);if(fs>=0){const t=st(sm[fs]);if(t>=0)return 8e10+t;}let quad=-1;const trips=[],pairs=[];for(let r=12;r>=0;r--){if(rc[r]===4)quad=r;else if(rc[r]===3)trips.push(r);else if(rc[r]===2)pairs.push(r);}const kick=(ex,n)=>{const o=[];for(let r=12;r>=0&&o.length<n;r--)if(rc[r]&&!ex.includes(r))o.push(r);return o;};const enc=a=>a.reduce((x,y)=>x*15+y,0);if(quad>=0)return 7e10+enc([quad,...kick([quad],1)]);if(trips.length&&(trips.length>1||pairs.length))return 6e10+enc([trips[0],Math.max(trips.length>1?trips[1]:-1,pairs.length?pairs[0]:-1)]);if(fs>=0){const o=[];for(let r=12;r>=0&&o.length<5;r--)if((sm[fs]>>r)&1)o.push(r);return 5e10+enc(o);}let m=0;for(let r=0;r<13;r++)if(rc[r])m|=1<<r;const t=st(m);if(t>=0)return 4e10+t;if(trips.length)return 3e10+enc([trips[0],...kick([trips[0]],2)]);if(pairs.length>=2)return 2e10+enc([pairs[0],pairs[1],...kick([pairs[0],pairs[1]],1)]);if(pairs.length===1)return 1e10+enc([pairs[0],...kick([pairs[0]],3)]);return enc(kick([],5));}
+function mc(heroHC,vils,board,N){const cum=vils.map(L=>{const c=new Float64Array(L.length);let t=0;L.forEach((x,i)=>{t+=x[2];c[i]=t;});return{c,t};});let seed=987654321,win=0,n=0;const rnd=()=>(seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff;
+for(let it=0;it<N;it++){const hc=heroHC[Math.floor(rnd()*heroHC.length)].split(' '),used=new Set([...board,...hc]),vs=[];let ok=true;for(let j=0;j<vils.length;j++){const{c,t}=cum[j];let pick=null;for(let tr=0;tr<25&&!pick;tr++){const x=rnd()*t;let lo=0,hi=c.length-1;while(lo<hi){const m=(lo+hi)>>1;if(c[m]<x)lo=m+1;else hi=m;}const cd=vils[j][lo];if(!used.has(cd[0])&&!used.has(cd[1]))pick=cd;}if(!pick){ok=false;break;}used.add(pick[0]);used.add(pick[1]);vs.push(pick);}
+if(!ok)continue;const bd=board.slice();while(bd.length<5){const c=D[Math.floor(rnd()*52)];if(!used.has(c)){used.add(c);bd.push(c);}}const B=bd.map(pk),hv=ev7([pk(hc[0]),pk(hc[1]),...B]);let best=true,tie=1;for(const v of vs){const vv=ev7([pk(v[0]),pk(v[1]),...B]);if(vv>hv){best=false;break;}if(vv===hv)tie++;}if(best)win+=1/tie;n++;}return n?win/n:null;}
+onmessage=e=>{const j=e.data;postMessage({key:j.key,r:mc(j.h,j.v,j.b,j.n)});};`;
+        function eqWorker() { if (EQ.w || !EQ.worker) return EQ.w; try { EQ.w = new Worker(URL.createObjectURL(new Blob([EQ_SRC], { type: 'text/javascript' }))); EQ.w.onmessage = e => eqDone(e.data.key, e.data.r); EQ.w.onerror = () => { EQ.worker = false; EQ.w = null; EQ.busy = false; eqPump(); }; } catch (e) { EQ.worker = false; EQ.w = null; } return EQ.w; }
+        // signature des ranges : le résultat gardé n'est valable que pour exactement les mêmes ranges
+        const eqHash = vils => { let h = 0; vils.forEach((L, j) => { for (let i = 0; i < L.length; i += 3) h = (h * 31 + Math.round(L[i][2] * 997) + (L[i][0].charCodeAt(0) << 3) + L[i][1].charCodeAt(1) + j) % 2147483647; h = (h + L.length * 7919) % 2147483647; }); return h.toString(36); };
+        function eqDone(key, r) { EQ.mem.set(key, r); EQ.pend.delete(key); EQ.dirty = true; EQ.busy = false; EQ.ver++; eqSaveSoon(); if (EQ.waitR && EQ.waitR.has(key)) { EQ.waitR.delete(key); eqRefreshSoon(); } eqPump(); }
+        function eqPump() { if (EQ.busy) return; const now = Date.now(); let j = EQ.qHi.shift(); if (!j && now >= EQ.pauseUntil) j = EQ.qLo.shift(); if (!j) { if (EQ.qLo.length) setTimeout(eqPump, EQ.pauseUntil - now + 20); eqPrepTick(); return; }
+            if (EQ.mem.has(j.key)) return eqPump(); EQ.busy = true; const w = eqWorker();
+            if (w) w.postMessage(j); else setTimeout(() => { let r = null; try { r = _eqSync(j.h, j.v, j.b, j.n, null); } catch (e) { } eqDone(j.key, r); }, 0); }
+        function eqQueue(j, hi) { if (EQ.mem.has(j.key)) return; if (EQ.pend.has(j.key)) { if (hi && EQ.pend.get(j.key) === 'lo') { EQ.qLo = EQ.qLo.filter(x => x.key !== j.key); EQ.qHi.push(j); EQ.pend.set(j.key, 'hi'); } return; } EQ.pend.set(j.key, hi ? 'hi' : 'lo'); (hi ? EQ.qHi : EQ.qLo).push(j); eqPump(); }
+        // mémoire permanente
+        let _eqSaveT = null; function eqSaveSoon() { clearTimeout(_eqSaveT); _eqSaveT = setTimeout(() => { if (!EQ.dirty) return; EQ.dirty = false; if (EQ.mem.size > 40000) { const k = [...EQ.mem.keys()].slice(0, EQ.mem.size - 35000); k.forEach(x => EQ.mem.delete(x)); } try { localforage.setItem('mt_eq', Object.fromEntries(EQ.mem)); } catch (e) { } }, 3000); }
+        try { localforage.getItem('mt_eq').then(o => { if (o) Object.entries(o).forEach(([k, v]) => { if (!EQ.mem.has(k)) EQ.mem.set(k, v); }); }); } catch (e) { }
+        let _eqRT = null; function eqRefreshSoon() { clearTimeout(_eqRT); _eqRT = setTimeout(() => { if (curTab() === 'mtab' && MT.view === 'flop') { EQ.anticip = false; renderMt(); } }, 60); }
+        // le calcul d'équité du Mode table devient asynchrone (les autres usages restent immédiats)
+        const _eqSync = mpEqMC; EQ.prefetch = false; EQ.waitR = new Set();
+        mpEqMC = function (heroHC, vils, board, N, key) {
+            if (!key || !/^[abc]\|/.test(key)) return _eqSync.apply(this, arguments); if (!heroHC.length || vils.some(L => !L.length)) return null;
+            const k2 = key + '|' + eqHash(vils); if (EQ.mem.has(k2)) return EQ.mem.get(k2);
+            eqQueue({ key: k2, h: heroHC, v: vils, b: board, n: N }, !EQ.prefetch); if (!EQ.prefetch) { EQ.waitR.add(k2); EQ.waiting = true; } return null; };
+        // pendant le calcul : un message au lieu d'un panneau vide
+        { const _vh = mpVerdictHtml; mpVerdictHtml = function (C, hero, st, V) { const r = _vh.apply(this, arguments); if (r || mtCell == null || !V.board || V.eq != null) return r; return '<div class="rounded-2xl bg-indigo-950/60 border border-indigo-400/40 p-3 text-sm text-slate-300">⏳ Calcul de ton équité en arrière-plan…</div>'; }; }
+        // l'anticipation s'arrête dès que tu touches l'écran, et reprend 1,2 s après
+        document.addEventListener('pointerdown', () => { EQ.pauseUntil = Date.now() + 1200; }, true);
+        // ---- anticipation : la rue suivante pour ta main, puis toutes les mains sur ce board ----
+        let _eqAT = null;
+        function eqAnticipate(C, hero) { clearTimeout(_eqAT); if (mtCell == null) return; const S = mpS(), cards = (S.cards || []).slice(), st = S.st || 'F', nb = st === 'F' ? 3 : st === 'T' ? 4 : 5; if (cards.length < nb) return;
+            const jobs = [], cur = mtCell; const used = new Set(cards.slice(0, nb));
+            if (nb < 5) MP_DECK.forEach(c => { if (!used.has(c)) jobs.push({ ci: cur, st: nb === 3 ? 'T' : 'R', cards: [...cards.slice(0, nb), c] }); });
+            for (let ci = 0; ci < 169; ci++) if (ci !== cur) jobs.push({ ci, st, cards: cards.slice(0, nb) });
+            let i = 0; const gen = ++EQ.gen; const step = dl => { if (gen !== EQ.gen) return; if (Date.now() < EQ.pauseUntil || EQ.qHi.length || EQ.qLo.length > 40) { _eqAT = setTimeout(() => eqIdle(step), 300); return; }
+                const t0 = performance.now(); do { eqRun(C, hero, jobs[i++]); } while (i < jobs.length && (dl ? dl.timeRemaining() > 6 : performance.now() - t0 < 8));
+                if (i < jobs.length) _eqAT = setTimeout(() => eqIdle(step), 20); };
+            _eqAT = setTimeout(() => eqIdle(step), 400); }
+        const eqIdle = f => window.requestIdleCallback ? requestIdleCallback(f, { timeout: 2000 }) : f(null);
+        function eqRun(C, hero, j) { const S = mpS(), sv = { cell: mtCell, cards: S.cards, st: S.st }; EQ.prefetch = true;
+            try { mtCell = j.ci; S.cards = j.cards; S.st = j.st; mpVerdict(C, hero, j.st); } catch (e) { } finally { mtCell = sv.cell; S.cards = sv.cards; S.st = sv.st; EQ.prefetch = false; } }
+        // ---- « Préparer ce spot » : toutes tes mains sur tes flops solvés (ou un flop par famille), reprise automatique ----
+        function eqPrepStart(C, hero) { const fl = [...new Set(Object.values(GTP).filter(R => R.flop).map(R => R.flop.join(' ')))].map(s => s.split(' '));
+            const F = fl.length ? fl : TXFAM.map(f => (f.ex[0] || '').match(/../g)).filter(x => x && x.length === 3); const jobs = []; F.forEach(f => { for (let ci = 0; ci < 169; ci++) jobs.push({ ci, st: 'F', cards: f }); });
+            EQ.prep = { C, hero, jobs, i: 0, n: jobs.length, nf: F.length }; eqPrepTick(); }
+        function eqPrepTick() { const P = EQ.prep; if (!P || EQ.qLo.length > 30 || EQ.qHi.length || Date.now() < EQ.pauseUntil) return; const t0 = performance.now();
+            do { eqRun(P.C, P.hero, P.jobs[P.i++]); } while (P.i < P.n && performance.now() - t0 < 8);
+            const el = document.getElementById('eqPrep'); if (el) el.textContent = P.i < P.n ? `Préparation : ${Math.round(100 * P.i / P.n)} % (${P.nf} flops)` : '✓ Spot préparé';
+            if (P.i >= P.n) { EQ.prep = null; return; } setTimeout(() => eqIdle(() => { if (!EQ.busy) eqPump(); else eqPrepTick(); }), 30); }
+        // ---- décision de ton solveur (flop, pots limpés HU) pour ta main ----
+        function hudSolver(C, kindWanted) { try { const T = gtpCtx(C); if (!T || !Object.keys(GTP).length || mtCell == null) return null; const me = C.pos(0), board = C.cards && C.cards.length === 3 ? C.cards : null; if (!board) return null; const eff0 = Math.min(...C.seats.map(k => mtQ(MT.st[k])));
+                let kind = kindWanted === 'open' ? (me === 'BB' ? 'first' : 'x') : 'bet', par = 0; if (kind === 'bet') { const ps = [...new Set(gtpRecs(T.tree, me, 'bet').map(R => R.par))].sort((a, b) => a - b); if (!ps.length) return null; par = ps[0]; }
+                const P = gtpPick(T.tree, me, kind, par, eff0, board); if (!P || !P.R) return null; const H = gtpHero(P, mtCell, board); if (!H) return null; const R = P.R;
+                const L = R.acts.map((a, j) => ({ l: fxLab(a, R), f: H.f[j], e: H.e[j] })).filter(x => x.f > .005).sort((a, b) => b.f - a.f); return { L, exact: P.exact, par: R.par, src: P.exact ? 'ton solveur · flop exact' : 'ton solveur · flop proche' }; } catch (e) { return null; } }
+        // ---- le bandeau sur la table ----
+        const HUD_C = l => /^(Couche)/.test(l) ? '#64748b' : /^Check/.test(l) ? '#0ea5e9' : /^Paie/.test(l) ? '#10b981' : /^(Tapis|Relance)/.test(l) ? '#e11d48' : '#f59e0b';
+        let hudLast = null;
+        function hudHtml(C, hero) { hudLast = null;
+            const S = mpS(), st = S.st || 'F', nb = st === 'F' ? 3 : st === 'T' ? 4 : 5, cards = S.cards || [], PE = st === 'F' ? { pot: C.pot, eff: C.eff } : mpPotAt(C, st), pot = Math.max(.5, PE.pot), bet = Math.min(PE.eff, .5 * pot), need = bet / (pot + 2 * bet);
+            let V = null; try { V = mpVerdict(C, hero, st); } catch (e) { }
+            const LN = { x: 'check-check', hb: 'tu mises, il paie', vb: 'il mise, tu paies' }, ok = cards.length >= nb;
+            const steps = [['P', 'Préflop', `${(C.act === 'raise' ? 'relance' : (MP_ACTL[C.act] || '').toLowerCase()) || '—'} · pot ${simF1(C.pot)} BB`, true], ['F', 'Flop', cards.length >= 3 ? `${rcCards(cards.slice(0, 3).join(' '))}${st !== 'F' ? ' · ' + LN[S.l1 || 'x'] : ''}` : '…', true], ['T', 'Turn', cards[3] ? `${rcCards(cards[3])}${st === 'R' ? ' · ' + LN[S.l2 || 'x'] : ''}` : '…', st !== 'F'], ['R', 'River', cards[4] ? rcCards(cards[4]) : '…', st === 'R']];
+            const fr = `<div class="flex items-stretch gap-1 overflow-x-auto custom-scrollbar">${steps.map(([k, l, t, on], i) => `<div class="shrink-0 rounded-lg px-2 py-1 ${k === st ? 'bg-amber-500/20 ring-1 ring-amber-400' : on ? 'bg-slate-800' : 'bg-slate-900 opacity-50'}"><div class="text-[10px] uppercase font-bold ${k === st ? 'text-amber-300' : 'text-slate-400'}">${l}</div><div class="text-xs text-slate-100 whitespace-nowrap">${t}</div></div>${i < 3 ? '<div class="self-center text-slate-600">›</div>' : ''}`).join('')}</div>`;
+            const potH = `<div class="flex items-baseline gap-3 flex-wrap"><div><span class="text-[10px] uppercase font-bold text-slate-400">Pot</span> <b class="text-2xl text-white">${simF1(pot)} BB</b></div><div class="text-xs text-slate-300">tapis effectif ${simF1(PE.eff)} BB</div></div>`;
+            if (mtCell == null) return `<div class="rounded-2xl bg-slate-950/70 border border-white/10 p-3 mb-2 space-y-2">${fr}${potH}<div class="text-sm text-slate-300">Touche ta main dans la grille préflop pour voir ton équité et la décision.</div></div>`;
+            if (!ok) return `<div class="rounded-2xl bg-slate-950/70 border border-white/10 p-3 mb-2 space-y-2">${fr}${potH}<div class="text-sm text-slate-300">Ta main <b>${cname(mtCell)}</b> : touche ${st === 'F' ? 'les 3 cartes du flop' : st === 'T' ? 'la carte du turn' : 'la carte de la river'} pour l'équité et la décision.</div></div>`;
+            const eq = V && V.eq, wait = eq == null;
+            const eqH = wait ? `<div class="text-sm text-slate-300">⏳ Équité en calcul…</div>` : `<div class="flex items-center gap-2"><span class="text-[10px] uppercase font-bold text-slate-400 w-14">Équité</span><div class="flex-1 h-3 rounded bg-slate-800 overflow-hidden relative"><div class="h-full ${eq >= need ? 'bg-emerald-500' : 'bg-rose-500'}" style="width:${100 * eq}%"></div><div class="absolute inset-y-0 w-0.5 bg-white/80" style="left:${100 * need}%" title="équité nécessaire pour payer ${Math.round(100 * need)} %"></div></div><b class="text-lg text-white w-14 text-right">${mpPc(eq)}</b></div>
+                <div class="text-[11px] text-slate-400">contre la range ${V.opp.map((o, j) => `de ${o.pos} (${mpPc(V.share[j])} des mains)`).join(' et ')}${V.known < V.opp.length ? ' · range estimée' : ''}</div>`;
+            // tu parles (personne n'a misé)
+            const sol = st === 'F' ? hudSolver(C, 'open') : null; let me1;
+            if (sol) me1 = { main: sol.L[0].l, mix: sol.L.length > 1 && sol.L[0].f < .85 ? sol.L.map(x => `${x.l.toLowerCase()} ${Math.round(100 * x.f)} %`).join(' · ') : `${Math.round(100 * sol.L[0].f)} %`, src: sol.src };
+            else if (V && V.best) { const alt = Object.keys(V.ev).filter(k => k !== V.best).sort((a, b) => V.ev[b] - V.ev[a])[0]; me1 = { main: V.best, mix: `EV ${labF1(V.ev[V.best])} BB${alt ? ` · ${alt.toLowerCase()} ${labF1(V.ev[alt])}` : ''}`, src: 'équité et fold du field' }; }
+            // face à une mise
+            const sol2 = st === 'F' ? hudSolver(C, 'face') : null; let me2;
+            if (sol2) me2 = { t: `S'il mise ${simF1(sol2.par)} BB`, main: sol2.L[0].l, mix: sol2.L.length > 1 && sol2.L[0].f < .85 ? sol2.L.map(x => `${x.l.toLowerCase()} ${Math.round(100 * x.f)} %`).join(' · ') : `${Math.round(100 * sol2.L[0].f)} %`, src: sol2.src };
+            else if (V && V.eqB != null) { const c = V.eqB >= need; me2 = { t: `S'il mise ${simF1(bet)} BB (moitié du pot)`, main: c ? 'Paie' : 'Couche', mix: `tu as ${mpPc(V.eqB)} contre sa range de mise, il te faut ${Math.round(100 * need)} %`, src: 'équité contre la cote' }; }
+            hudLast = { pot, eq, need, me1, me2, cards: cards.slice(0, nb), wait };
+            const card = (t, o) => o ? `<div class="rounded-xl bg-slate-900 border border-white/10 p-2.5"><div class="text-[10px] uppercase font-bold text-slate-400">${t}</div><div class="text-xl font-black mt-0.5" style="color:${HUD_C(o.main)}">${esc(o.main.toUpperCase())}</div><div class="text-xs text-slate-300">${o.mix}</div><div class="text-[10px] text-slate-500 mt-0.5">source : ${o.src}</div></div>` : `<div class="rounded-xl bg-slate-900 border border-white/10 p-2.5 text-sm text-slate-400">${wait ? '⏳ …' : '—'}</div>`;
+            const prep = EQ.prep ? `Préparation : ${Math.round(100 * EQ.prep.i / EQ.prep.n)} %` : '⚡ Préparer ce spot';
+            return `<div class="rounded-2xl bg-slate-950/70 border border-white/10 p-3 mb-2 space-y-2">${fr}${potH}${eqH}<div class="grid grid-cols-2 gap-2">${card('Tu parles (personne n\'a misé)', me1)}${card(me2 ? me2.t : 'S\'il mise', me2)}</div>
+                <div class="flex items-center justify-between gap-2"><div class="text-[10.5px] text-slate-500">Détail complet à droite. Les équités calculées restent en mémoire.</div><button id="eqPrep" data-hud="prep" class="shrink-0 min-h-[36px] px-3 rounded-lg bg-slate-800 text-[11px] font-bold text-slate-200" title="Calcule d'avance l'équité de toutes tes mains sur tes flops solvés, pour ce spot">${prep}</button></div></div>`;
+        }
+        const feltPre = () => `Pot 1,5 BB<br>${MT.fmt === 'HU' ? 'heads-up' : '3-way'}`;
+        function feltHtml() { const H = hudLast; if (!H) return feltPre(); const pill = (t, o, col) => o ? `<div class="rounded-md bg-slate-950/85 px-1.5 py-0.5 leading-tight">${col ? `<div class="text-[9px] uppercase text-slate-400">${t}</div>` : `<span class="text-[9px] uppercase text-slate-400">${t}</span> `}<b class="text-[12px] ${col ? '' : 'whitespace-nowrap'}" style="color:${HUD_C(o.main)}">${esc(o.main.toUpperCase())}</b></div>` : '';
+            const hu = MT.fmt === 'HU';
+            if (hu) return `<div class="flex flex-col items-center gap-1 text-[12px] text-white"><div class="rounded-md bg-slate-950/75 px-1.5 py-0.5 font-bold whitespace-nowrap">${rcCards(H.cards.join(' '))}</div><div class="rounded-md bg-slate-950/75 px-1.5 py-0.5 whitespace-nowrap">Pot <b>${simF1(H.pot)}</b> · ${H.wait ? '⏳' : `éq. <b class="${H.eq >= H.need ? 'text-emerald-300' : 'text-rose-300'}">${mpPc(H.eq)}</b>`}</div>${pill('Tu parles', H.me1, 1)}${pill('S\'il mise', H.me2, 1)}</div>`;
+            return `<div class="flex flex-col items-center gap-1"><div class="flex items-center gap-1.5 rounded-md bg-slate-950/75 px-2 py-0.5 text-[12px] text-white whitespace-nowrap"><span class="font-bold">${rcCards(H.cards.join(' '))}</span><span class="text-slate-400">·</span><span>Pot <b>${simF1(H.pot)}</b></span><span class="text-slate-400">·</span>${H.wait ? '<span>⏳</span>' : `<span>éq. <b class="${H.eq >= H.need ? 'text-emerald-300' : 'text-rose-300'}">${mpPc(H.eq)}</b></span>`}</div>
+                <div class="flex gap-1">${pill('Tu parles', H.me1)}${pill('S\'il mise', H.me2)}</div></div>`; }
+        { const _mh = mpHook; mpHook = function (Z, R, s, hero) { _mh.apply(this, arguments); Z.felt = feltPre(); if (MT.view !== 'flop') return; let C = s ? mpCtxLink(R, s) : null; if (C && C.none) return; if (!C) C = mpCtxManual(); hudCtx = { C, hero };
+            try { const h = hudHtml(C, hero); Z.grid = Z.grid.replace(/(<div class="flex gap-2 mb-2">(?:<button data-mp="st"[\s\S]*?<\/button>){3}<\/div>)/, '$1' + h); Z.felt = feltHtml(); } catch (e) { console.error('hud', e); }
+            try { eqAnticipate(C, hero); } catch (e) { } }; }
+        let hudCtx = null;
+        document.addEventListener('click', e => { const b = e.target.closest('[data-hud="prep"]'); if (!b || !hudCtx) return; if (EQ.prep) { EQ.prep = null; b.textContent = '⚡ Préparer ce spot'; return; } eqPrepStart(hudCtx.C, hudCtx.hero); b.textContent = 'Préparation : 0 %'; });
+        // un seul calcul de verdict par affichage (le bandeau et le panneau de droite partagent le même)
+        { const _mv = mpVerdict; let last = null; mpVerdict = function (C, hero, st) { if (EQ.prefetch) return _mv.apply(this, arguments); const S = mpS(), k = [st, mtCell, (S.cards || []).join(''), S.l1, S.l2, S.c4, S.c5, C.act, C.p && C.p.k, C.pot, C.eff, MT.sit, JSON.stringify(MT.tg), (MT.st || []).join(','), EQ.ver].join('|');
+            if (last && last.k === k) return last.v; const v = _mv.apply(this, arguments); last = { k, v }; return v; }; }
 
 </script>
 </body>
