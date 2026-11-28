@@ -1379,7 +1379,7 @@
         
         function tagsOf(o, avg) {
             if (o.n < 10) return ['?'];
-            const s = stShrunk(o, avg).v, t = [s.vpip > avg.vpip + 12 && s.pfr < avg.pfr + 8 ? 'Fish' : 'Reg'];
+            const s = tgAdjS(o, stShrunk(o, avg).v, avg), t = [s.vpip > avg.vpip + 12 && s.pfr < avg.pfr + 8 ? 'Fish' : 'Reg'];
             if (s.af < avg.af * .7) t.push('Passif'); if (s.af > avg.af * 1.3) t.push('Agressif');
             
             customTags.forEach(c => { 
@@ -3204,7 +3204,7 @@
             const card = p => { const o = PR[p]; if (!o) return `<div class="rounded-lg bg-slate-900/60 border border-white/10 p-2 text-xs text-slate-500">${esc(p)} : aucune donnée</div>`;
                 const sh = stShrunk(o, av).v, tg = [...new Set(tagsOf(o, av))], shown = [...new Set(o.obs.map(x => x.c))];
                 const cv = (k, d = 0) => `<b class="${o.n < 10 ? 'text-slate-400' : heat(sh[k], av[k])}">${sh[k].toFixed(d)}</b> <span class="text-slate-500">(field ${av[k].toFixed(d)})</span>`;
-                return `<div class="rounded-lg bg-slate-900/60 border border-white/10 p-2"><div class="font-bold text-sm text-slate-200 mb-1">${esc(p)} ${tg.map(t => `<span class="text-[10px] px-2 py-0.5 rounded-md ${tc(t)}">${esc(t)}</span>`).join(' ')}</div>
+                return `<div class="rounded-lg bg-slate-900/60 border border-white/10 p-2"><div class="font-bold text-sm text-slate-200 mb-1">${esc(p)} ${stChipsHtml(p, 4)}</div>
                     <div class="text-xs text-slate-300">VPIP ${cv('vpip')} · PFR ${cv('pfr')} · Limp ${cv('limp')} · AF ${cv('af', 1)}</div>${xsLine(sh)}<div class="text-[10px] text-slate-500 mt-1">${o.n} mains vues · ${o.obs.length} montrée(s)${o.n < 10 ? ' · profil peu fiable' : ''}</div>
                     <div class="text-[10px] text-slate-400 mt-1">Mains montrées : ${shown.length ? shown.slice(0, 24).join(' ') + (shown.length > 24 ? ' …' : '') : '—'}</div></div>`; };
             let s = null; try { s = trSpotOf(h, hero); } catch (e) { s = null; }
@@ -4487,8 +4487,9 @@
         }
         // --- 35. FILTRE GLOBAL DE PROFONDEUR (BB effectifs = min(ton stack, plus gros stack adverse) au début de la main) ---
         let dep = { mode: 'all', x: 7, lo: 0, hi: 5 }, _dEff = new WeakMap(), _dH = null, _fsC = {};
+        var SPF = (() => { try { return localStorage.getItem('spf') || 'exp'; } catch (e) { return 'exp'; } })(); function spinOk(h) { if (SPF === 'all') return true; const n = String(h.name || ''); if (!n) return true; if (!/expresso/i.test(n)) return false; return SPF === 'nitro' ? /nitro/i.test(n) : SPF === 'classic' ? !/nitro/i.test(n) : true; }
         const depSig = () => dep.mode === 'all' ? 'all' : dep.mode === 'exact' ? 'x' + dep.x : 'r' + dep.lo + '-' + dep.hi;
-        const dKey = () => allParsedHands.length + '~' + depSig();
+        const dKey = () => allParsedHands.length + '~' + SPF + '~' + depSig();
         function depEff(h) {
             const hero = playerSelect.value, c = _dEff.get(h); if (c && c.hero === hero) return c.e;
             const bb = bbOf(h); let e = null;
@@ -4501,7 +4502,7 @@
             if (dep.mode === 'all') return true; const e = depEff(h); if (e == null) return false;
             return dep.mode === 'exact' ? Math.abs(e - dep.x) <= .5 : e >= dep.lo && e <= dep.hi;
         }
-        function depHands() { const k = dKey() + '|' + playerSelect.value; if (_dH && _dH.k === k) return _dH.a; return (_dH = { k, a: dep.mode === 'all' ? allParsedHands : allParsedHands.filter(depOk) }).a; }
+        function depHands() { const k = dKey() + '|' + playerSelect.value; if (_dH && _dH.k === k) return _dH.a; return (_dH = { k, a: allParsedHands.filter(h => spinOk(h) && (dep.mode === 'all' || depOk(h))) }).a; }
         function depLabel() { return dep.mode === 'all' ? 'toutes profondeurs' : dep.mode === 'exact' ? `${dep.x} BB (±0,5)` : `${dep.lo}–${dep.hi} BB`; }
         function depApply(fromChip) {
             const m = document.getElementById('depMode'); if (!m) return;
@@ -8192,14 +8193,14 @@
         function mtDots(n) { return relBadge(n); }
         function mtSeatHtml(k, hero, x, y, mini) {
             const pos = mtPosOf(k), me = k === 0, tg = MT.tg[k] || 'f', isB = k === MT.btn % mtN(), P = me ? null : (() => { try { return buildProfiles()[tg.startsWith('p:') ? tg.slice(2) : '']; } catch (e) { return null; } })();
-            let sub = ''; if (!me) { if (tg.startsWith('p:')) { const t = _mtIx && _mtIx.tg[tg.slice(2)]; sub = `${P ? P.n : 0} mains${t && t.length && P && P.n >= 30 ? ' · ' + esc([...new Set(t)].slice(0, 2).join(' / ')) : ''}`; } else if (tg.startsWith('m:')) { const m = MT.man[tg.slice(2)] || {}; sub = `saisie : shove ${m.sh ?? '—'} % · call ${m.ca ?? '—'} %`; } else sub = tg === 'f' ? 'touche pour choisir' : tg === 'g' ? 'joue exactement tes charts' : 'profil'; }
+            let sub = '', chips = ''; if (!me) { if (tg.startsWith('p:')) { const t = _mtIx && _mtIx.tg[tg.slice(2)]; sub = `${P ? P.n : 0} mains`; try { chips = stChipsHtml(tg.slice(2), 3, true); } catch (e) { } } else if (tg.startsWith('m:')) { const m = MT.man[tg.slice(2)] || {}; sub = `saisie : shove ${m.sh ?? '—'} % · call ${m.ca ?? '—'} %`; } else { sub = tg === 'f' ? 'touche pour choisir' : tg === 'g' ? 'joue exactement tes charts' : 'profil'; if (tg.startsWith('a:')) try { chips = stTagChip(tg.slice(2)); } catch (e) { } } }
             const pc = pos === 'BTN' ? 'bg-amber-500 text-slate-900' : pos === 'SB' ? 'bg-sky-600 text-white' : 'bg-violet-600 text-white';
             const on = mtSelK() === k;
             return `<div data-mt="sel" data-k="${k}" class="cursor-pointer ${mini ? '' : 'absolute -translate-x-1/2 -translate-y-1/2 w-[46%] max-w-[230px] shadow-xl '}rounded-2xl ${on ? 'bg-slate-900/95 border-yellow-400 ring-4 ring-yellow-400/70' : me ? 'bg-indigo-950/95 border-indigo-400' : 'bg-slate-900/95 border-white/15'} border-2 p-2"${mini ? '' : ` style="left:${x}%;top:${y}%"`}>
                 <div class="flex items-center justify-between gap-1 mb-1"><span class="text-xs font-black px-2 py-1 rounded-lg ${pc}">${pos}</span><span class="flex items-center gap-1.5">
                     <button data-mt="sel" data-k="${k}" data-tog="1" aria-label="Modifier le stack de ce siège" class="w-10 h-10 rounded-full text-sm font-black border-2 ${on ? 'bg-yellow-400 text-slate-900 border-yellow-300' : 'bg-transparent text-slate-400 border-slate-500'}">M</button>
                     <button data-mt="btn" data-k="${k}" aria-label="Mettre le bouton ici" class="w-10 h-10 rounded-full text-sm font-black border-2 ${isB ? 'bg-white text-slate-900 border-amber-400 shadow' : 'bg-transparent text-slate-500 border-slate-600 border-dashed'}">D</button></span></div>
-                ${me ? `<div class="text-sm font-bold text-indigo-200 truncate px-1">Moi</div>` : `<button data-mt="pick" data-k="${k}" class="w-full text-left rounded-xl bg-slate-800 active:bg-slate-700 px-2 py-2 min-h-[44px]"><div class="text-sm font-bold text-slate-100 truncate">${esc(mtLab(tg, hero))} <span class="text-slate-400">▾</span></div><div class="text-[11px] text-slate-400 truncate">${sub}</div></button>`}
+                ${me ? `<div class="text-sm font-bold text-indigo-200 truncate px-1">Moi</div>` : `<button data-mt="pick" data-k="${k}" class="w-full text-left rounded-xl bg-slate-800 active:bg-slate-700 px-2 py-2 min-h-[44px]"><div class="text-sm font-bold text-slate-100 truncate">${esc(mtLab(tg, hero))} <span class="text-slate-400">▾</span></div><div class="text-[11px] text-slate-400 truncate">${sub}</div>${chips ? `<div class="mt-1 leading-tight">${chips}</div>` : ''}</button>`}
                 <div class="flex items-center justify-between gap-1 mt-1"><button data-mt="st" data-k="${k}" data-d="-0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">−</button><span class="flex items-baseline"><input data-mtin="${k}" type="number" inputmode="decimal" step="0.5" min="1" value="${mtQ(MT.st[k])}" aria-label="Stack ${pos} en BB" class="w-16 bg-transparent text-center text-base font-black text-white rounded-lg py-1 focus:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-yellow-400 [appearance:textfield]"><span class="text-xs text-slate-400">BB</span></span><button data-mt="st" data-k="${k}" data-d="0.5" class="w-11 h-11 rounded-xl bg-slate-800 active:bg-slate-700 text-lg font-bold text-slate-200">+</button></div></div>`;
         }
         function mtGridHtml(s) {
@@ -8377,7 +8378,7 @@
             const a = [], b = []; for (const x of I.L) { const i = x.k.indexOf(q); if (i === 0) a.push(x); else if (i > 0 && b.length < 40) b.push(x); } return a.slice(0, 40).concat(b).slice(0, 40);
         }
         function mtRowHtml(x) { const t = _mtIx.tg[x.p], fav = MT.fav.includes('p:' + x.p);
-            return `<div class="flex items-stretch gap-2"><button data-mt="set" data-tg="${esc('p:' + x.p)}" class="flex-1 text-left rounded-xl bg-slate-800 active:bg-slate-700 px-3 py-2 min-h-[52px]"><div class="text-base font-bold text-slate-100 truncate">${esc(x.p)}</div><div class="text-xs text-slate-400">${x.n} mains${t && t.length && x.n >= 30 ? ' · ' + esc([...new Set(t)].slice(0, 3).join(' / ')) : ''}</div></button>
+            return `<div class="flex items-stretch gap-2"><button data-mt="set" data-tg="${esc('p:' + x.p)}" class="flex-1 text-left rounded-xl bg-slate-800 active:bg-slate-700 px-3 py-2 min-h-[52px]"><div class="text-base font-bold text-slate-100 truncate">${esc(x.p)}</div><div class="text-xs text-slate-400">${x.n} mains</div>${(() => { try { return `<div class="mt-1">${stChipsHtml(x.p, 4, true)}</div>`; } catch (e) { return ''; } })()}</button>
                 <button data-mt="fav" data-tg="${esc('p:' + x.p)}" aria-label="Favori" class="w-12 rounded-xl text-xl ${fav ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-500'}">${fav ? '★' : '☆'}</button></div>`; }
         function mtChip(tg, hero, cls) { return `<button data-mt="set" data-tg="${esc(tg)}" class="px-3 min-h-[44px] rounded-xl text-sm font-bold ${cls || 'bg-slate-800 text-slate-100'}">${esc(mtShort(mtLab(tg, hero), 18))}</button>`; }
         function mtPickRender() {
@@ -9417,9 +9418,9 @@
         function mpAdd(M, key, R) { const c = M[key] || (M[key] = { n: 0, m: {} }); c.n++; for (const k in R.m) { const o = c.m[k] || (c.m[k] = [0, 0]); o[0]++; o[1] += R.m[k]; } }
         // index construit par tranches (la tablette reste fluide) ; cb = rappel quand c'est prêt
         function mpIndex(hero, cb) {
-            const k = hero + '|' + allParsedHands.length + '|' + txGv(); if (_mpIx && _mpIx.k === k) return _mpIx;
+            const k = hero + '|' + allParsedHands.length + '|' + txGv() + '|' + SPF; if (_mpIx && _mpIx.k === k) return _mpIx;
             if (_mpBuild && _mpBuild.k === k) { if (cb) _mpBuild.cb = cb; return null; }
-            _txGv = txGv(); const H = allParsedHands.filter(h => h.buyin !== 0), P = {}, F = {}, HX = {}, B = _mpBuild = { k, i: 0, n: H.length, cb };
+            _txGv = txGv(); const H = allParsedHands.filter(h => h.buyin !== 0 && spinOk(h)), P = {}, F = {}, HX = {}, B = _mpBuild = { k, i: 0, n: H.length, cb };
             const step = () => { if (_mpBuild !== B) return; const end = Math.min(H.length, B.i + 1500);
                 for (; B.i < end; B.i++) { const recs = txHand(H[B.i]); if (!recs) continue; recs.forEach(R => { const a = mpKey(R.fmt, R.role, R.ip, R.fam), b = mpKey(R.fmt, R.role, R.ip, '*'), w = 'W|' + R.role, Q = P[R.p] || (P[R.p] = {}); mpAdd(Q, a, R); mpAdd(Q, b, R); mpAdd(Q, w, R); if (R.p !== hero) { mpAdd(F, a, R); mpAdd(F, b, R); mpAdd(F, w, R); } else { const c = R.cat; if (c) { mpHx(HX, a + '|' + c, R); mpHx(HX, b + '|' + c, R); } }
                     ['T', 'R'].forEach(st => { const D = R['s' + st]; if (!D) return; const b0 = st + '|' + D.line + '|' + D.agg + '|' + (R.ip ? 1 : 0) + '|', o = { m: D.m };
@@ -12907,7 +12908,7 @@ onmessage=e=>{const j=e.data;postMessage({key:j.key,r:mc(j.h,j.v,j.b,j.n)});};`;
             else if (e && e.hero && e.ld) { main = `<div class="rounded-xl bg-slate-900 border border-white/10 p-4"><div class="text-xs text-slate-400 mb-2">${stOf[e.st]} · ${esc((e.ld.board || []).join(' '))} · pas de solve pour ce nœud : verdict par l'équité et la cote</div><div class="arx-cards arx-big">${cardsH(h.hole[1])}</div></div>`; side = xpVerdictLab(e.ld); }
             else main = `<div class="text-sm text-slate-400">${e && e.hero ? 'Pas d\'analyse pour cette décision (ligne hors de ton moteur).' : 'Action adverse : touche une de tes décisions (badge ✓ ou rouge) pour l\'analyse.'}</div>`;
             const decs = E.map((x, i) => [x, i]).filter(([x]) => x.hero && x.v != null);
-            return `<div class="flex flex-wrap items-center gap-2 mb-3"><button data-xp="back" class="min-h-[44px] px-3 rounded-xl bg-slate-800 text-sm font-bold">← Mes mains</button><span class="arx-cards">${cardsH(h.hole[1])}</span><span class="text-sm text-slate-300">${esc(h.players.map(p => `${X.posOf(p)} ${p === hero ? 'toi' : p}`).join(' · '))} · ${simF1(Math.min(...h.players.map(p => h.stacks[p])) / X.bb)} BB effectifs</span>
+            return `<div class="flex flex-wrap items-center gap-2 mb-3"><button data-xp="back" class="min-h-[44px] px-3 rounded-xl bg-slate-800 text-sm font-bold">← Mes mains</button><button data-hhx="${esc(h.id)}" class="min-h-[44px] px-3 rounded-xl bg-slate-700 text-white text-sm font-bold">📋 Export NotebookLM</button><span class="arx-cards">${cardsH(h.hole[1])}</span><span class="text-sm text-slate-300">${esc(h.players.map(p => `${X.posOf(p)} ${p === hero ? 'toi' : p}`).join(' · '))} · ${simF1(Math.min(...h.players.map(p => h.stacks[p])) / X.bb)} BB effectifs</span>
                 <select data-xphtg class="sel min-h-[44px] text-sm ml-auto"><option value="p" ${XP.htg === 'p' ? 'selected' : ''}>Adversaire modélisé : lui</option><option value="f" ${XP.htg === 'f' ? 'selected' : ''}>… comme le field</option><option value="g" ${XP.htg === 'g' ? 'selected' : ''}>… GTO</option></select>${XP.htg !== 'g' ? `<div class="flex gap-1">${[['chart', '📘 Charte'], ['opp', '🎯 Meilleure réponse']].map(([k, l]) => `<button data-xpview="${k}" class="min-h-[44px] px-3 rounded-lg text-xs font-bold ${XP.view === k ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('')}</div>` : ''}<button data-xp="replay" class="min-h-[44px] px-3 rounded-xl bg-slate-800 text-sm font-bold">▶ Revoir la main</button></div>
                 <div id="xpStrip" class="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">${strip}</div>
                 ${decs.length ? `<div class="flex flex-wrap gap-2 my-2 text-xs"><b class="text-slate-400 mr-1">Verdict :</b>${decs.map(([x, i]) => `<button data-xphs="${i}" class="min-h-[36px] px-2 rounded-lg ${i === idx ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'}">${stOf[x.st]} · ${esc(XP_K[x.k] || x.k)} <b class="${x.v < -.005 ? 'text-rose-300' : 'text-emerald-300'}">${x.v < -.005 ? arxF2(x.v) : '✓'}</b></button>`).join('')}</div>` : ''}
@@ -13361,6 +13362,326 @@ onmessage=e=>{const j=e.data;postMessage({key:j.key,r:mc(j.h,j.v,j.b,j.n)});};`;
         { const g = LABG.find(x => x.k === 'lose'); if (g) g.s = g.s.filter(x => x[0] !== 'gp'); }
         // 2) une seule liste de priorités : tes écarts postflop (rapports InstaSolver) rejoignent les leaks préflop
         { const _lg = arxLeakGames; arxLeakGames = function (hero) { const L = _lg.apply(this, arguments); try { if (typeof IR !== 'undefined' && Object.keys(IR).length) isrGaps(hero, 'me').slice(0, 2).forEach(g => L.push({ id: 'isr|' + g.o.k + '|' + g.fam, t: `Postflop · ${isrNodeLab(g.o)} · ${TXFK[g.fam].l}`, d: `${g.facing ? 'fold' : 'agressif'} ${arxPc(g.me)} vs ${arxPc(g.gto)} au solveur, ${g.n} décisions`, cost: Math.abs(g.me - g.gto) * Math.sqrt(g.n) / 3, patch: { pnode: '', pdep: 0, pfl: g.fam, pmode: 'norm' }, games: [['fq', '🎚 Fréquence et taille'], ['fa', '🗂 Famille + c-bet']] })); } catch (e) { } return L.sort((a, b) => b.cost - a.cost); }; }
+
+        // ===================== 110. MODE TABLE : « SI TU MISES ET QU'IL RELANCE » =====================
+        // Verdict par main = cote du pot + ton équité contre sa range de relance (sa range préflop resserrée à la fréquence où il relance,
+        // d'après son profil). Le solveur (InstaSolver par flop, GTO+ par main quand le solve existe) sert de référence et de correction.
+        const MRZ_PC = v => Math.round(100 * v) + ' %', MRZ_BB = v => (Math.round(v * 10) / 10).toString().replace('.', ',') + ' BB';
+        function mrzSolver(C, fi, betPct) { if (typeof IR === 'undefined' || !Object.keys(IR).length || fi == null) return {};
+            const me = C.pos(0), vil = C.pos(C.opp[0]), fmt = C.fmt === 'HU' ? 'HU' : '3M', nR = (C.line || []).filter(x => x.a === 'raise').length, potT = C.rz < 0 ? 'L' : nR >= 2 ? '3B' : 'R', dep = Math.min(...C.seats.map(k => mtQ(MT.st[k])));
+            const pool = Object.values(IR).filter(o => (o.fmt === fmt || o.fmt === '*') && o.potT === potT && Math.abs(o.dep - dep) <= 3.5);
+            const near = L => { if (!L.length) return null; const sz = o => { const b = o.seq.find(x => x[0] === me && x[1] === 'b'); return b ? +b[2] || 50 : 50; };
+                return L.sort((a, b) => (Math.abs(a.dep - dep) - Math.abs(b.dep - dep)) || (Math.abs(sz(a) - betPct) - Math.abs(sz(b) - betPct)))[0]; };
+            // lui face à ta mise (sa fréquence de relance au solveur) ; toi face à sa relance
+            const vf = near(pool.filter(o => o.act === vil && o.opp === me && o.seq.length && o.seq[o.seq.length - 1][0] === me && o.seq[o.seq.length - 1][1] === 'b'));
+            const mf = pool.filter(o => o.act === me && o.opp === vil && o.seq.length >= 2 && o.seq[o.seq.length - 1][0] === vil && /^(r|xr)$/.test(o.seq[o.seq.length - 1][1]) && o.seq.some(x => x[0] === me && x[1] === 'b'));
+            const isAll = o => /all/i.test(String(o.seq[o.seq.length - 1][2] || '')), out = {};
+            if (vf) { const D = isrD(vf.k); if (D && D.ok(fi)) { let s = 0, r = 0, rm = []; vf.cols.forEach((c, j) => { const f = D.f(fi, j); if (c.g === 's') s += f; if (c.g === 'r') { r += f; rm.push([c, f]); } }); out.vil = { s, r, o: vf, rm }; } }
+            [['all', near(mf.filter(isAll))], ['rz', near(mf.filter(o => !isAll(o)))]].forEach(([k, o]) => { if (!o) return; const D = isrD(o.k); if (!D || !D.ok(fi)) return; const f = o.cols.map((_, j) => D.f(fi, j)); out[k] = { o, f, cont: f.reduce((a, v, j) => a + (o.cols[j].g === 'f' ? 0 : v), 0) }; });
+            return out; }
+        function mrzGtp(C, board, eff) { try { if (mtCell == null || C.pos(0) !== 'SB' || !gtpCtx(C) || !Object.keys(GTP).length) return null; const tos = [...new Set(gtpRecs('HULIMP', 'SB', 'xr').map(R => R.par.to))]; let best = null;
+                tos.forEach(to => { const P = gtpPick('HULIMP', 'SB', 'xr', { b: 1, to }, eff, board); if (!P || !P.R || !P.exact) return; const h = gtpHero(P, mtCell, board); if (!h || !h.inRange) return; const j = h.f.indexOf(Math.max(...h.f)); best = best || { to, lab: gtpLab(P.R.acts[j], P.R), f: h.f[j], R: P.R, h }; }); return best; } catch (e) { return null; } }
+        // sa range de relance : ses meilleures mains (value) + une part de bluffs pris dans ses tirages
+        function mrzRaiseRange(L, board, rF, bs) { let tot = 0; L.forEach(x => tot += x[2]); const VAL = { fort: 1, ovp: 1, top: 1 };
+            const sc = L.map(x => { const c = txCat(x[0] + ' ' + x[1], board) || 'air'; return { x, c, v: MP_CR[c] * 100 + Math.max(TX_RK.indexOf(x[0][0]), TX_RK.indexOf(x[1][0])) }; }).sort((a, b) => b.v - a.v);
+            // value : ses mains fortes seulement (il ne relance pas une paire moyenne pour la value) ; le reste de sa fréquence de relance = bluffs (tirages d'abord)
+            const T = rF * tot; let vl = (1 - bs) * T; const out = [], left = new Map(); let vu = 0;
+            sc.forEach((o, i) => { if (vl <= 0 || !VAL[o.c]) return; const w = Math.min(o.x[2], vl); out.push([o.x[0], o.x[1], w]); vl -= w; vu += w; left.set(i, o.x[2] - w); });
+            let bl = Math.max(T - vu, vu * bs / (1 - bs)); const take = (i, o, k) => { const r = left.has(i) ? left.get(i) : o.x[2], w = Math.min(r * k, bl); if (w > 0) { out.push([o.x[0], o.x[1], w]); bl -= w; left.set(i, r - w); } };
+            sc.forEach((o, i) => { if (bl > 0 && o.c === 'draw') take(i, o, 1); }); for (let i = sc.length - 1; i >= 0 && bl > 0; i--) if (sc[i].c === 'air') take(i, sc[i], 1); sc.forEach((o, i) => { if (bl > 0 && o.c === 'mid') take(i, o, 1); });
+            return out; }
+        function mrzHtml(C, hero, V) {
+            if (!V || !V.board || !C || !C.opp || C.opp.length !== 1 || !C.linked) return ''; const pot = Math.max(.5, V.PE.pot), eff = V.PE.eff, o = V.opp[0]; if (!(eff > .5)) return '';
+            const bLab = V.best && /Mise/.test(V.best) ? V.best : 'Mise 50 %', bPct = +(bLab.match(/\d+/) || [50])[0], b = Math.min(eff, pot * bPct / 100); if (b >= eff - .01) return '';
+            const fi = (() => { try { return gpIso().get(gpSortCards(V.board)); } catch (e) { return null; } })(), SOL = mrzSolver(C, fi, bPct);
+            // fréquence où il relance ta mise : son profil (tes HH), sinon le solveur
+            const solR = SOL.vil ? SOL.vil.s + SOL.vil.r : null, rF = Math.max(.03, Math.min(.6, o.tg !== 'f' || solR == null ? o.r : solR)), mult = SOL.vil && SOL.vil.rm.length ? (SOL.vil.rm.sort((a, b) => b[1] - a[1])[0][0].mult || 3) : 3;
+            const prof = o.tg !== 'f' && solR != null, bs = prof ? Math.max(.1, Math.min(.5, .25 * o.r / Math.max(.02, solR))) : .25, Rto = Math.min(eff, b * (mult > 1.2 ? mult : 3)), commit = Rto >= .45 * eff;
+            const needA = (eff - b) / (pot + 2 * eff), needR = (Rto - b) / (pot + 2 * Rto);
+            let eq = null; if (mtCell != null) { const board = V.board, inFlop = new Set(C.opp.map(k => C.pos(k))), dead = new Set(board), h2 = mpCombos(mtCell).filter(hc => !hc.split(' ').some(x => dead.has(x)));
+                if (h2.length) { h2.forEach(hc => hc.split(' ').forEach(x => dead.add(x))); const w = mpVilRange(C.p, C.act, o.pos, inFlop), L = mpRangeCombos(w, dead), Lr = mrzRaiseRange(L, board, rF, bs);
+                    eq = mpEqMC(h2, [Lr], board, 1500, ['rz', mtCell, board.join(''), C.p ? C.p.k : 'm', C.act, o.pos, o.tg, rF.toFixed(3), bs.toFixed(2)].join('|')); } }
+            const G = mrzGtp(C, V.board, eff);
+            const verd = (need, isAll) => { if (eq == null) return null; if (isAll || commit) return eq >= need ? { t: isAll ? 'Paie' : 'Tapis', c: 'text-emerald-300' } : { t: 'Couche', c: 'text-rose-300' };
+                return eq >= .5 ? { t: 'Tapis', c: 'text-emerald-300' } : eq >= need + .05 ? { t: 'Paie', c: 'text-emerald-300' } : { t: 'Couche', c: 'text-rose-300' }; };
+            const vA = verd(needA, true), vR = verd(needR, false), edge = (need) => eq == null ? '' : Math.abs(eq - need) < .04 ? ' <span class="text-amber-300">(limite)</span>' : '';
+            const cell = (lab, v, need, sol, gt) => `<div class="rounded-xl bg-slate-950/60 border border-white/10 p-2"><div class="text-[11px] text-slate-400">${lab}</div>
+                ${gt ? `<div class="text-xl font-black text-amber-300">${esc(gt.lab)} <span class="text-[11px] font-bold">GTO+ ${MRZ_PC(gt.f)}</span></div>` : v ? `<div class="text-xl font-black ${v.c}">${v.t}${edge(need)}</div>` : '<div class="text-sm text-slate-400">touche ta main</div>'}
+                <div class="text-[11.5px] text-slate-300">il te faut <b>${MRZ_PC(need)}</b>${eq != null ? ` · tu as <b class="text-white">≈ ${MRZ_PC(eq)}</b>` : ''}</div>${sol ? `<div class="text-[10.5px] text-slate-500 mt-0.5">solveur, toute ta range : continue ${MRZ_PC(sol.cont)} sur ce flop</div>` : ''}</div>`;
+            const why = solR != null && o.tg !== 'f' ? (o.r > solR * 1.4 ? `Il relance <b>${MRZ_PC(o.r)}</b> face à une mise, le solveur ${MRZ_PC(solR)} : sa relance contient plus de bluffs, on paie plus large.` : o.r < solR * .7 ? `Il relance <b>${MRZ_PC(o.r)}</b> face à une mise, le solveur ${MRZ_PC(solR)} : sa relance est forte, on couche plus.` : `Il relance ${MRZ_PC(o.r)} face à une mise, comme le solveur (${MRZ_PC(solR)}).`)
+                : `Il relance ≈ ${MRZ_PC(rF)} de ses mains face à une mise${solR != null && o.tg === 'f' ? ' (fréquence du solveur sur ce flop)' : ' (estimé)'} : surtout ses meilleures mains, plus quelques tirages en bluff.`;
+            let mine = ''; try { const FR = labIndex(hero).FR.filter(x => x.st === 'F' || x.st === 'flop' || x.st === 1), me = FR.filter(x => x.me), fl = FR.filter(x => !x.me); if (me.length >= 15) mine = `Dans tes mains : tu couches <b>${MRZ_PC(me.filter(x => x.v === 0).length / me.length)}</b> face à une relance au flop (${me.length} fois), le field ${MRZ_PC(fl.filter(x => x.v === 0).length / Math.max(1, fl.length))}.`; } catch (e) { }
+            const solBar = k => SOL[k] ? `<div class="mt-1"><div class="text-[10.5px] text-slate-400">${esc(isrNodeLab(SOL[k].o))} · ${SOL[k].o.dep} BB</div>${isrBar(SOL[k].o.cols, SOL[k].f)}<div class="flex flex-wrap gap-x-3 text-[10.5px] text-slate-400">${SOL[k].o.cols.map((c, j) => SOL[k].f[j] >= .02 ? `<span><span style="color:${isrCol(c, j, SOL[k].o.cols)}">■</span> ${esc(c.l)} ${MRZ_PC(SOL[k].f[j])}</span>` : '').join('')}</div></div>` : '';
+            return `<div class="rounded-2xl bg-slate-900/80 border border-orange-400/40 p-3 mt-2"><div class="flex items-baseline justify-between gap-2 flex-wrap"><div class="text-[11px] uppercase font-bold text-orange-300">Si tu ${bLab.toLowerCase().replace('mise', 'mises')} (${MRZ_BB(b)}) et qu'il relance</div><div class="text-[10.5px] text-slate-500">${o.tg === 'f' ? 'contre le field' : esc(arxTgLab(o.tg))}</div></div>
+                <div class="grid grid-cols-2 gap-2 mt-1.5">${commit ? '' : cell(`Il relance à ${MRZ_BB(Rto)}`, vR, needR, SOL.rz, G)}${cell(`Il fait tapis (${MRZ_BB(eff)})`, vA, needA, SOL.all, null)}${commit ? `<div class="text-[11px] text-slate-400 self-center">À cette profondeur, sa relance t'engage : payer = tapis. Même décision.</div>` : ''}</div>
+                <div class="text-[11.5px] text-slate-300 mt-1.5">${why}</div>
+                ${true ? `<details class="mt-1"><summary class="cursor-pointer min-h-[32px] text-[11px] text-slate-400">Détails : ${[SOL.rz || SOL.all ? 'solveur sur ce flop' : '', mine ? 'tes stats' : ''].filter(Boolean).join(' · ') || 'méthode'}</summary>${solBar('rz')}${solBar('all')}${mine ? `<div class="text-[11px] text-slate-300 mt-1">${mine}</div>` : ''}<div class="text-[10px] text-slate-500 mt-1">Verdict = ton équité (simulation) contre sa range de relance, comparée à la cote du pot. Le solveur InstaSolver donne la stratégie de toute ta range sur ce flop, pas celle de ta main${G ? ' ; le solve GTO+ ci-dessus, lui, est exact pour ta main' : ''}. Tes prochains solves GTO+ affineront ces verdicts automatiquement.</div></details>` : ''}</div>`;
+        }
+        { const _mv = mpVerdictHtml; mpVerdictHtml = function (C, hero, st, V) { const r = _mv.apply(this, arguments); if (st !== 'F') return r; let x = ''; try { x = mrzHtml(C, hero, V); } catch (e) { console.error('mrz', e); } return r + x; }; }
+
+        // ===================== 111. EXPORT D'UNE MAIN POUR NOTEBOOKLM (HH complète + stats brutes des vilains, sans conseil) =====================
+        const HHX = { me: false, fx: true };
+        const hhxPc = (k, n) => n ? Math.round(100 * k / n) + ' %' : '–';
+        const hhxBB = (x, bb) => (Math.round(10 * x / bb) / 10).toString().replace('.', ',') + ' BB';
+        function hhxPos(h) { const g = r => (h.blinds.find(l => r.test(l)) || '').split(' posts')[0], sb = g(/posts small blind/), bb = g(/posts big blind/), P = {};
+            h.players.forEach(p => P[p] = p === sb ? (h.players.length === 2 ? 'SB/BTN' : 'SB') : p === bb ? 'BB' : 'BTN'); return P; }
+        // ---- la main, rue par rue, avec pot et tapis restants ----
+        function hhxFr(l, bb) { let m; const who = (l.match(/^(.+?) (posts|folds|checks|calls|bets|raises|shows|collected|mucks|wins|does)\b/) || [])[1];
+                if ((m = l.match(/^(.+?) posts (small|big) blind (\d+)/))) return [m[1], `poste la ${m[2] === 'small' ? 'petite' : 'grosse'} blinde ${m[3]}`, +m[3], 'add'];
+                if ((m = l.match(/^(.+?) raises (\d+) to (\d+)( and is all-in)?/))) return [m[1], `relance à ${m[3]} (${hhxBB(+m[3], bb)})${m[4] ? ' — TAPIS' : ''}`, +m[3], 'to'];
+                if ((m = l.match(/^(.+?) bets (\d+)( and is all-in)?/))) return [m[1], `mise ${m[2]} (${hhxBB(+m[2], bb)})${m[3] ? ' — TAPIS' : ''}`, +m[2], 'add'];
+                if ((m = l.match(/^(.+?) calls (\d+)( and is all-in)?/))) return [m[1], `paie ${m[2]} (${hhxBB(+m[2], bb)})${m[3] ? ' — TAPIS' : ''}`, +m[2], 'add'];
+                if ((m = l.match(/^(.+?) checks/))) return [m[1], 'checke', 0];
+                if ((m = l.match(/^(.+?) folds/))) return [m[1], 'se couche', 0];
+                if ((m = l.match(/^(.+?) collected (\d+)/))) return [m[1], `remporte ${m[2]} (${hhxBB(+m[2], bb)})`, 0, 'win'];
+                if ((m = l.match(/^(.+?) shows \[(.+?)\]/))) return [m[1], `montre ${m[2]}`, 0];
+                return who ? [who, l.slice(who.length + 1), 0] : [null, l, 0]; }
+        // ---- faits chiffrés neutres : cote du pot à chaque décision où tu fais face à une mise + action de ta charte préflop ----
+        function hhxFacts(h, hero) { const bb = h.bb || bbOf(h), left = { ...h.stacks }, out = [], fold = new Set(); let pot = 0; const al = x => String(x || '').replace(/^raise (\d+(?:[.,]\d+)?)$/, 'relance à $1 BB').replace(/^raise$/, 'relance').replace('shove', 'tapis').replace('check', 'check').replace('call', 'call');
+            const blindsLines = (h.blinds || []).filter(l => /posts/.test(l));
+            [['Préflop', [...blindsLines, ...(h.preflop || [])]], ['Flop', h.flop || []], ['Turn', h.turn || []], ['River', h.river || []]].forEach(([nm, L], si) => { const put = {}; let mx = 0;
+                if (si === 1 && L.length && pot) { const eff = Math.min(...h.players.filter(p => !fold.has(p)).map(p => left[p])); out.push(`- Flop : pot ${hhxBB(pot, bb)}, tapis effectif restant ${hhxBB(eff, bb)} (SPR ${(eff / pot).toFixed(1).replace('.', ',')})`); }
+                L.forEach(l => { const [p, , a, k] = hhxFr(l, bb); if (!p || k === 'win') return; if (/ folds/.test(l)) fold.add(p); const prev = put[p] || 0;
+                    if (p === hero && !/posts/.test(l) && mx > prev) { const call = Math.min(mx - prev, left[p]); if (call > 0) { const fin = pot + call - ((mx - prev) - call); out.push(`- ${nm} : face à ${hhxBB(mx, bb)} misés, il te faut payer ${hhxBB(call, bb)} pour un pot final de ${hhxBB(fin, bb)}${call < mx - prev ? ' (tu es à tapis, il récupère l\'excédent)' : ''} → équité nécessaire ${hhxPc(call, fin)} (cote du pot)`); } }
+                    const add = k === 'to' ? a - prev : k === 'add' ? a : 0; if (add > 0) { put[p] = prev + add; left[p] = Math.max(0, (left[p] || 0) - add); pot += add; mx = Math.max(mx, put[p]); } }); });
+            try { const s = trSpotOf(h, hero); if (s && s.bestLab) out.push(`- Préflop, référence de l'app pour ${s.hole || h.hole[1]} (${cname(s.ci)}) dans ce spot (${String(s.label || '').replace(/’/g, "'")}, ${String(Math.round(10 * s.S) / 10).replace('.', ',')} BB) : ${al(s.bestLab)}. Source : ${s.cls || 'charte'}. Ton action : ${al(s.act)}.`); } catch (e) { }
+            return out; }
+        function hhxHand(h, hero) { const bb = h.bb || bbOf(h), P = hhxPos(h), out = [], left = { ...h.stacks }; let pot = 0;
+            const sbAmt = +(((h.blinds.find(l => /small blind/.test(l)) || '').match(/(\d+)\s*$/) || [0, 0])[1]), hole = h.hole && h.hole[1];
+            out.push(`MAIN ${h.id}`, `Winamax ${h.name || 'Expresso'} · tournoi ${h.tid || '?'}${h.buyin ? ' · buy-in ' + h.buyin + ' €' : ''} · ${h.ts || h.date}`,
+                `Format : ${h.players.length === 2 ? 'heads-up' : h.players.length + '-max'} · blinds ${sbAmt}/${bb} jetons (1 BB = ${bb} jetons) · sans ante`, '', 'JOUEURS (tapis au début de la main)');
+            h.players.forEach(p => out.push(`- ${P[p]} : ${p}${p === hero ? ' (moi)' : ''} · ${h.stacks[p]} jetons = ${hhxBB(h.stacks[p], bb)}`));
+            const eff = Math.min(...h.players.map(p => h.stacks[p])); out.push(`Tapis effectif : ${hhxBB(eff, bb)}`); if (hole) out.push(`Mes cartes (${hero}) : ${hole}`);
+            const fr = l => hhxFr(l, bb);
+            const board = (h.board || '').split(' ').filter(Boolean), ST = [['PRÉFLOP', h.preflop, []], ['FLOP', h.flop, board.slice(0, 3)], ['TURN', h.turn, board.slice(3, 4)], ['RIVER', h.river, board.slice(4, 5)]];
+            const blindsLines = (h.blinds || []).filter(l => /posts/.test(l));
+            ST.forEach(([nm, L, cards], si) => { if (si > 0 && !(L && L.length) && !cards.length) return; const put = {}; let lines = si === 0 ? [...blindsLines, ...(L || [])] : (L || []);
+                if (si > 0) out.push('', `${nm} [${cards.join(' ')}]${si > 1 ? ' · board ' + board.slice(0, 2 + si).join(' ') : ''} · pot ${pot} (${hhxBB(pot, bb)}) · tapis restants : ${h.players.filter(p => left[p] > 0).map(p => `${p} ${hhxBB(left[p], bb)}`).join(', ')}`); else out.push('', 'PRÉFLOP');
+                lines.forEach(l => { const [p, t, a, k] = fr(l); if (!p) { if (!/^Dealt/.test(l)) out.push('  ' + l); return; } const prev = put[p] || 0, add = k === 'to' ? a - prev : k === 'add' ? a : 0;
+                    if (add > 0) { put[p] = prev + add; left[p] = Math.max(0, (left[p] || 0) - add); pot += add; } out.push(`  ${P[p] || ''} ${p}${p === hero ? ' (moi)' : ''} ${t}`); }); });
+            if ((h.showdown || []).length) { out.push('', 'ABATTAGE'); h.showdown.forEach(l => { const [p, t] = fr(l); out.push('  ' + (p ? `${P[p] || ''} ${p} ${t}` : l)); }); }
+            const sh = h.shown || {}; if (Object.keys(sh).length) out.push('Cartes montrées : ' + Object.entries(sh).map(([p, c]) => `${p} ${c}`).join(' · '));
+            out.push('', 'RÉSUMÉ', ...(h.summary || []).map(l => '  ' + l)); return out.join('\n'); }
+        // ---- stats brutes : comptes réels + moyenne du field (sans correction ni conseil) ----
+        const HHX_CTX = { open: 'premier à parler (personne n\'est entré)', limp: 'face à un limp', min: 'face à un min-raise (≤ 2,5 BB)', big: 'face à une relance (> 2,5 BB)', shove: 'face à un tapis', aggShove: 'face à un tapis après avoir relancé' };
+        const HHX_ACT = { fold: 'fold', check: 'check', call: 'call/limp', raise: 'relance', shove: 'tapis' };
+        function hhxField(PR, hero) { const F = { n: 0, vpip: 0, pfr: 0, limp: 0, agg: 0, call: 0, d: 0, dOpp: 0, saw: 0, went: 0, won: 0, T: {} };
+            Object.keys(PR).forEach(p => { if (p === hero) return; const o = PR[p];['n', 'vpip', 'pfr', 'limp', 'agg', 'call', 'd', 'dOpp'].forEach(k => F[k] += o[k] || 0); if (o.sd) { F.saw += o.sd.saw; F.went += o.sd.went; F.won += o.sd.won; }
+                for (const k in o.T || {}) { const t = F.T[k] || (F.T[k] = { n: 0 }); for (const a in o.T[k]) t[a] = (t[a] || 0) + o.T[k][a]; } }); return F; }
+        function hhxPre(o, F) { const out = [], keys = Object.keys(o.T || {}).sort(), fmtL = { HU: 'Heads-up', '3M': '3-max' };
+            const ord = ['open', 'limp', 'min', 'big', 'shove', 'aggShove'];
+            keys.sort((a, b) => { const A = a.split('|'), B = b.split('|'); return A[1].localeCompare(B[1]) || A[2].localeCompare(B[2]) || ord.indexOf(A[0]) - ord.indexOf(B[0]) || +A[3] - +B[3]; });
+            keys.forEach(k => { const [ctx, fmt, pos, b] = k.split('|'), t = o.T[k], f = F.T[k] || { n: 0 }, acts = Object.keys(HHX_ACT).filter(a => t[a] || f[a]);
+                out.push(`- ${fmtL[fmt] || fmt} · ${pos} · ${HHX_CTX[ctx] || ctx} · tapis eff. ${XB_LAB[+b]} : ${t.n} fois → ${acts.filter(a => t[a]).map(a => `${HHX_ACT[a]} ${t[a]} (${hhxPc(t[a], t.n)})`).join(', ')}${f.n ? ` | field (${f.n}) : ${acts.map(a => `${HHX_ACT[a]} ${hhxPc(f[a] || 0, f.n)}`).join(', ')}` : ''}`); });
+            return out; }
+        function hhxPost(p, hero) { const ix = _mpIx; if (!ix) return ['(stats postflop pas encore calculées)']; const Q = ix.P[p] || {}, out = [], fmtL = { HU: 'Heads-up', '3M2': '3-max, flop à 2', '3M3': '3-max, flop à 3' }, roleL = { A: 'relanceur préflop', C: 'payeur préflop', L: 'pot limpé' };
+            ['HU', '3M2', '3M3'].forEach(fmt => ['A', 'C', 'L'].forEach(role => [1, 0].forEach(ip => { const key = mpKey(fmt, role, ip, '*'), c = Q[key]; if (!c || !c.n) return;
+                const parts = MP_SHOW[role].map(k => { const m = mpCell(Q, key, k), f = mpCell(ix.F, key, k); return m[0] ? `${MP_LAB[k]} ${m[1]}/${m[0]} (${hhxPc(m[1], m[0])}; field ${hhxPc(f[1], f[0])})` : ''; }).filter(Boolean);
+                if (parts.length) out.push(`- ${fmtL[fmt]} · ${roleL[role]} · ${ip ? 'en position' : 'hors position'} (${c.n} flop${c.n > 1 ? 's' : ''}) : ${parts.join(' · ')}`); })));
+            ['T', 'R'].forEach(st => { const c = Q[st + '|W']; if (c && c.n) out.push(`- ${st === 'T' ? 'Turn' : 'River'} : ${c.n} situations vues · ` + Object.keys(c.m).map(k => `${({ b: 'Mise quand personne n\'a misé', f: 'Fold face à une mise', r: 'Relance face à une mise', c: 'Call face à une mise' })[k] || MP_LAB[k] || k} ${c.m[k][1]}/${c.m[k][0]} (${hhxPc(c.m[k][1], c.m[k][0])})`).join(' · ')); });
+            return out.length ? out : ['(aucun flop vu avec lui)']; }
+        function hhxShown(p) { const out = []; depHands().forEach(h => { if (h.buyin === 0 || !h.shown || !h.shown[p]) return; const P = hhxPos(h), bb = h.bb || bbOf(h); if (!bb) return;
+                const pre = h.preflop.filter(l => l.startsWith(p + ' ')).map(l => l.replace(p + ' ', '').replace(/raises \d+ to (\d+)/, (m, x) => 'relance à ' + hhxBB(+x, bb)).replace(/calls (\d+)/, (m, x) => 'paie ' + hhxBB(+x, bb)).replace(' and is all-in', ' (tapis)').replace('folds', 'fold').replace('checks', 'check')).join(', ');
+                const post = ['flop', 'turn', 'river'].map(s => (h[s] || []).filter(l => l.startsWith(p + ' ') && !/collected/.test(l)).map(l => l.replace(p + ' ', '').replace(/bets (\d+)/, (m, x) => 'mise ' + hhxBB(+x, bb)).replace(/raises \d+ to (\d+)/, (m, x) => 'relance à ' + hhxBB(+x, bb)).replace(/calls (\d+)/, (m, x) => 'paie ' + hhxBB(+x, bb)).replace(' and is all-in', ' (tapis)').replace('checks', 'check').replace('folds', 'fold')).join(', ')).map((x, i) => x ? ['flop', 'turn', 'river'][i] + ' : ' + x : '').filter(Boolean).join(' ; ');
+                out.push(`- ${h.shown[p]} · ${h.players.length === 2 ? 'HU' : '3-max'} ${P[p]} · ${hhxBB(Math.min(...h.players.map(q => h.stacks[q])), bb)} eff. · préflop : ${pre || '—'}${post ? ' ; ' + post : ''}${h.board ? ' · board ' + h.board : ''} · ${h.ts || h.date}`); });
+            return out.length ? out.slice(-40) : ['(aucune main montrée)']; }
+        // ---- stats globales compactes (une ligne par spot, toutes profondeurs confondues) ----
+        function hhxPreG(o, F) { const G = {}, FG = {}, ord = ['open', 'limp', 'min', 'big', 'shove'], posO = { HU: ['SB', 'BB'], '3M': ['BTN', 'SB', 'BB'] };
+            const add = (M, T) => { for (const k in T || {}) { const [ctx, fmt, pos] = k.split('|'), c = ctx === 'aggShove' ? 'shove' : ctx, kk = fmt + '|' + pos + '|' + c, t = M[kk] || (M[kk] = { n: 0 }); for (const a in T[k]) t[a] = (t[a] || 0) + T[k][a]; } };
+            add(G, o.T); add(FG, F.T); const out = [], fmtL = { HU: 'HU', '3M': '3-max' }, posL = { HU: { SB: 'SB/BTN', BB: 'BB' }, '3M': { BTN: 'BTN', SB: 'SB', BB: 'BB' } };
+            const ctxL = { open: 'premier à parler', limp: 'face à un limp', min: 'face à un min-raise', big: 'face à une relance', shove: 'face à un tapis' };
+            ['HU', '3M'].forEach(fmt => posO[fmt].forEach(pos => ord.forEach(ctx => { const t = G[fmt + '|' + pos + '|' + ctx]; if (!t || !t.n) return; const f = FG[fmt + '|' + pos + '|' + ctx] || { n: 0 }, acts = ['fold', 'check', 'call', 'raise', 'shove'].filter(a => (t[a] || f[a] || 0) > 0 && !(ctx === 'open' && a === 'check')), lab = a => a === 'call' ? (ctx === 'open' ? 'limp' : 'call') : HHX_ACT[a];
+                out.push(`- ${fmtL[fmt]} ${posL[fmt][pos]} ${ctxL[ctx]} (${t.n}) : ${acts.map(a => `${lab(a)} ${hhxPc(t[a] || 0, t.n)}`).join(', ')}${f.n ? ` | field ${acts.map(a => `${lab(a)} ${hhxPc(f[a] || 0, f.n)}`).join(', ')}` : ''}`); })));
+            return out; }
+        function hhxPostG(p) { const ix = _mpIx; if (!ix) return ['(stats postflop pas encore calculées)']; const Q = ix.P[p] || {}, out = [];
+            const ln = (lab, key, ks, L) => { const parts = ks.map(k => { const m = mpCell(Q, key, k), f = mpCell(ix.F, key, k); return m[0] ? `${(L || MP_LAB)[k] || k} ${m[1]}/${m[0]} (${hhxPc(m[1], m[0])}; field ${hhxPc(f[1], f[0])})` : ''; }).filter(Boolean); if (parts.length) out.push(`- ${lab} (${(Q[key] || {}).n || 0}) : ${parts.join(' · ')}`); };
+            ln('Relanceur préflop, flop', 'W|A', ['cb', 'cbt', 'fcr']); ln('Payeur préflop, flop', 'W|C', ['fcb', 'rcb', 'xr', 'dk', 'st']); ln('Pot limpé, flop', 'W|L', ['lb', 'lf', 'lr', 'xr']);
+            const SL = { b: 'Mise si personne n\'a misé', f: 'Fold face à une mise', r: 'Relance face à une mise', c: 'Call face à une mise' };
+            ln('Turn', 'T|W', ['b', 'f', 'r'], SL); ln('River', 'R|W', ['b', 'f', 'r'], SL); return out.length ? out : ['- aucun flop vu avec lui']; }
+        // une ligne préflop clé + une ligne postflop clé (toutes positions et profondeurs confondues)
+        function hhxKeyPre(o, F) { const S = (T, ctx, a) => { let n = 0, k = 0; for (const key in T || {}) { const c = key.split('|')[0]; if (ctx.includes(c)) { n += T[key].n; k += a.reduce((x, y) => x + (T[key][y] || 0), 0); } } return [n, k]; };
+            const it = (lab, ctx, a) => { const m = S(o.T, ctx, a), f = S(F.T, ctx, a); return m[0] ? `${lab} ${m[1]}/${m[0]} (${hhxPc(m[1], m[0])}; field ${hhxPc(f[1], f[0])})` : ''; };
+            const L = [it('Tapis d\'entrée', ['open'], ['shove']), it('Min-raise d\'entrée', ['open'], ['raise']), it('Limp d\'entrée', ['open'], ['call']), it('Fold face au min-raise', ['min'], ['fold']), it('Paie un tapis', ['shove', 'aggShove'], ['call'])].filter(Boolean);
+            return 'Préflop clés : ' + (L.join(' · ') || '–'); }
+        function hhxKeyPost(p) { const ix = _mpIx; if (!ix) return 'Postflop clés : (pas encore calculé)'; const Q = ix.P[p] || {};
+            const it = (lab, pairs) => { let n = 0, k = 0, N = 0, K = 0; pairs.forEach(([key, m]) => { const a = mpCell(Q, key, m), f = mpCell(ix.F, key, m); n += a[0]; k += a[1]; N += f[0]; K += f[1]; }); return n ? `${lab} ${k}/${n} (${hhxPc(k, n)}; field ${hhxPc(K, N)})` : ''; };
+            const L = [it('C-bet', [['W|A', 'cb']]), it('2e barrel', [['W|A', 'cbt']]), it('Fold si son c-bet est relancé', [['W|A', 'fcr']]), it('Fold vs c-bet', [['W|C', 'fcb']]), it('Relance le c-bet', [['W|C', 'rcb']]),
+                it('Check-raise', [['W|C', 'xr'], ['W|L', 'xr']]), it('Mise si le relanceur checke', [['W|C', 'st']]), it('Mise en pot limpé', [['W|L', 'lb']]), it('Fold vs mise en pot limpé', [['W|L', 'lf']])].filter(Boolean);
+            return 'Postflop clés : ' + (L.join(' · ') || '–'); }
+        function hhxStats(p, hero, PR, F, isMe) { const o = PR[p]; if (!o) return `${isMe ? 'MES STATS' : 'STATS DE ' + p} : aucune donnée`;
+            const sd = o.sd || { saw: 0, went: 0, won: 0 }, shown = [...new Set((o.obs || []).map(x => x.c))];
+            return [`${isMe ? 'MES STATS (' + p + ')' : 'STATS DE ' + p} — ${o.n} mains ${isMe ? 'dans mes HH' : 'en commun dans mes HH'}`,
+                `Général : VPIP ${o.vpip}/${o.n} (${hhxPc(o.vpip, o.n)}; field ${hhxPc(F.vpip, F.n)}) · PFR ${o.pfr}/${o.n} (${hhxPc(o.pfr, o.n)}; field ${hhxPc(F.pfr, F.n)}) · Limp ${o.limp}/${o.n} (${hhxPc(o.limp, o.n)}; field ${hhxPc(F.limp, F.n)})`,
+                `Postflop global : AF ${(o.agg / Math.max(1, o.call)).toFixed(1).replace('.', ',')} (${o.agg} mises/relances, ${o.call} calls; field ${(F.agg / Math.max(1, F.call)).toFixed(1).replace('.', ',')}) · Donk ${o.d}/${o.dOpp} (${hhxPc(o.d, o.dOpp)}; field ${hhxPc(F.d, F.dOpp)}) · WTSD ${sd.went}/${sd.saw} (${hhxPc(sd.went, sd.saw)}; field ${hhxPc(F.went, F.saw)}) · W$SD ${sd.won}/${sd.went} (${hhxPc(sd.won, sd.went)}; field ${hhxPc(F.won, F.went)})`,
+                hhxKeyPre(o, F), hhxKeyPost(p)].join('\n'); }
+        function hhxText(h, hero) { const PR = buildProfiles(), F = hhxField(PR, hero), vil = h.players.filter(p => p !== hero);
+            const FX = HHX.fx ? hhxFacts(h, hero) : []; return ['=== HISTORIQUE COMPLET DE LA MAIN ===', hhxHand(h, hero), '', ...(FX.length ? ['=== FAITS CHIFFRÉS (calculs, sans conseil) ===', ...FX, ''] : []), '=== STATS DES ADVERSAIRES (comptes bruts sur mes HH, field = moyenne de tous les adversaires) ===',
+                ...vil.map(p => hhxStats(p, hero, PR, F, false)), ...(HHX.me ? ['=== MES STATS (pour mon image à la table) ===', hhxStats(hero, hero, PR, F, true)] : []),].join('\n'); }
+        async function hhxOpen(id) { const hero = playerSelect.value, h = allParsedHands.find(x => x.id === id); if (!h) return;
+            let m = document.getElementById('hhxModal'); if (!m) { m = document.createElement('div'); m.id = 'hhxModal'; m.className = 'fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-3'; document.body.appendChild(m); }
+            m.innerHTML = '<div class="bg-slate-900 border border-white/10 rounded-2xl p-4 text-sm text-slate-300">Calcul des stats postflop…</div>';
+            if (!mpIndex(hero)) await new Promise(res => { mpIndex(hero, res); setTimeout(res, 20000); });
+            const paint = () => { const t = hhxText(h, hero); m.innerHTML = `<div class="bg-slate-900 border border-white/10 rounded-2xl p-4 w-full max-w-4xl max-h-[92vh] flex flex-col"><div class="flex flex-wrap items-center gap-2 mb-2"><div class="font-black text-white mr-auto">📋 Export pour NotebookLM</div>
+                <label class="flex items-center gap-2 text-sm text-slate-300 min-h-[44px]"><input type="checkbox" data-hhxfx class="w-5 h-5" ${HHX.fx ? 'checked' : ''}> Faits chiffrés</label><label class="flex items-center gap-2 text-sm text-slate-300 min-h-[44px]"><input type="checkbox" data-hhxme class="w-5 h-5" ${HHX.me ? 'checked' : ''}> Inclure mes stats</label>
+                <button data-hhxcp class="min-h-[44px] px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">Copier</button><button data-hhxdl class="min-h-[44px] px-4 rounded-xl bg-slate-700 text-white text-sm font-bold">Télécharger .txt</button><button data-hhxx class="min-h-[44px] px-4 rounded-xl bg-slate-800 text-sm font-bold">Fermer</button></div>
+                <div class="text-[11px] text-slate-500 mb-2">Main complète + stats brutes des adversaires (comptes réels, moyenne du field en repère), sans aucun conseil. ${t.length.toLocaleString('fr-FR')} caractères.</div>
+                <textarea readonly class="flex-1 min-h-[60vh] w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-[12px] font-mono text-slate-200">${esc(t)}</textarea></div>`;
+                m.querySelector('[data-hhxcp]').onclick = e => { try { navigator.clipboard.writeText(t); } catch (x) { const ta = m.querySelector('textarea'); ta.select(); document.execCommand('copy'); } e.target.textContent = '✓ Copié'; };
+                m.querySelector('[data-hhxdl]').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/plain;charset=utf-8' })); a.download = `main_${String(h.ts || h.date).replace(/[\/: ]/g, '-')}_${h.players.filter(p => p !== hero).join('_')}.txt`; document.body.appendChild(a); a.click(); a.remove(); };
+                m.querySelector('[data-hhxx]').onclick = () => m.remove(); m.querySelector('[data-hhxme]').onchange = e => { HHX.me = e.target.checked; paint(); }; m.querySelector('[data-hhxfx]').onchange = e => { HHX.fx = e.target.checked; paint(); }; };
+            paint(); m.onclick = e => { if (e.target === m) m.remove(); }; }
+        document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-hhx]'); if (b) { e.preventDefault(); hhxOpen(b.dataset.hhx); } });
+        // bouton dans le replayer (à côté de « Analyser cette main »)
+        { const _sr = startReplay; startReplay = function (h) { const r = _sr.apply(this, arguments); try { const m = document.getElementById('rpModal'), c = m && m.firstElementChild; if (c && h && h.id && h.hole && h.hole[0] === playerSelect.value) { let b = c.querySelector('[data-hhx]'); if (!b) { b = document.createElement('button'); b.className = 'mb-2 ml-2 min-h-[44px] px-4 rounded-xl bg-slate-700 text-white text-sm font-bold'; const a = c.querySelector('[data-xpgo]'); a ? a.after(b) : c.insertBefore(b, c.firstChild); } b.dataset.hhx = h.id; b.textContent = '📋 Exporter pour NotebookLM'; } } catch (x) { } return r; }; }
+
+        // ===================== 112. ADVERSAIRES → « SES MAINS » : toutes ses mains contre toi, verdicts GTO / field sur les mains montrées =====================
+        const VH = { p: '', f: 'all', spot: 'all', n: 60 };
+        const vhC = new Map();
+        function vhFieldT(hero) { const k = 'f|' + hero + '|' + allParsedHands.length; if (vhC.has(k)) return vhC.get(k); const PR = buildProfiles(), G = {};
+            Object.keys(PR).forEach(p => { if (p === hero) return; const T = PR[p].T || {}; for (const key in T) { const [ctx, fmt, pos] = key.split('|'), c = ctx === 'aggShove' ? 'shove' : ctx, kk = fmt + '|' + pos + '|' + c, t = G[kk] || (G[kk] = { n: 0 }); for (const a in T[key]) t[a] = (t[a] || 0) + T[key][a]; } });
+            vhC.set(k, G); return G; }
+        const VH_CTX = { open: 'premier à parler', limp: 'face à un limp', min: 'face à un min-raise', big: 'face à une relance', shove: 'face à un tapis' };
+        const VH_ACT = { fold: 'fold', check: 'check', call: 'call', raise: 'relance', shove: 'tapis' };
+        const vhSpotLab = (fmt, pos, ctx) => `${fmt === 'HU' ? 'HU' : '3-max'} ${fmt === 'HU' && pos === 'SB' ? 'SB/BTN' : pos} ${VH_CTX[ctx] || ctx}`;
+        // sa ligne : actions par rue (+ ce qu'il avait, si montré)
+        function vhLine(h, V) { const bb = h.bb || bbOf(h), cards = h.shown && h.shown[V], board = (h.board || '').split(' ').filter(Boolean), out = [];
+            const tr = l => { const [, t] = hhxFr(l, bb); return t.replace(/ \(\d+(,\d)? BB\)/g, m => m).replace(/^relance à \d+ \(([^)]+)\)/, 'relance à $1').replace(/^mise \d+ \(([^)]+)\)/, 'mise $1').replace(/^paie \d+ \(([^)]+)\)/, 'paie $1').replace(' — TAPIS', ' (tapis)').replace(/^remporte.*/, ''); };
+            [['Préflop', h.preflop, 0], ['Flop', h.flop, 3], ['Turn', h.turn, 4], ['River', h.river, 5]].forEach(([nm, L, nb]) => { const A = (L || []).filter(l => l.startsWith(V + ' ') && !/collected|shows|mucks/.test(l)).map(tr).filter(Boolean); if (!A.length) return;
+                let cat = ''; if (cards && nb) { try { const c = txCat(cards, board.slice(0, nb)); if (c) cat = TL_CLL[c === 'ovp' ? 'top' : c] || c; } catch (e) { } }
+                out.push({ st: nm, t: A.join(', '), cat, agg: A.some(x => /^(mise|relance)/.test(x)) }); });
+            return out; }
+        function vhNet(h, V) { const bb = h.bb || bbOf(h); let put = 0, won = 0; const L = [...(h.blinds || []).filter(l => /posts/.test(l))];
+            [[...L, ...(h.preflop || [])], h.flop || [], h.turn || [], h.river || [], h.showdown || []].forEach(S => { const P = {}; S.forEach(l => { if (!l.startsWith(V + ' ')) return; const [, , a, k] = hhxFr(l, bb), prev = P.v || 0; if (k === 'to') { put += a - prev; P.v = a; } else if (k === 'add') { put += a; P.v = prev + a; } else if (k === 'win') won += a; }); });
+            (h.summary || []).forEach(l => { if (!won && l.includes(V) && /won (\d+)/.test(l)) won = +l.match(/won (\d+)/)[1]; });
+            return (won - Math.min(put, Math.max(...h.players.filter(p => p !== V).map(p => h.stacks[p])))) / bb; }
+        function vhRows(hero, V) { const k = 'r|' + hero + '|' + V + '|' + allParsedHands.length + '|' + trCfg.ref; if (vhC.has(k)) return vhC.get(k); const FT = vhFieldT(hero), P = xsPct(), rows = [];
+            depHands().forEach(h => { if (!h.players.includes(V) || h.buyin === 0) return; const bb = h.bb || bbOf(h); if (!bb) return; const ev = (xsEvents(h) || []).find(e => e.p === V), cards = h.shown && h.shown[V], pos = hhxPos(h)[V];
+                const r = { h, pos, eff: Math.min(...h.players.map(p => h.stacks[p])) / bb, cards, ev, line: vhLine(h, V), net: vhNet(h, V), spot: ev ? ev.fmt + '|' + ev.pos + '|' + (ev.ctx === 'aggShove' ? 'shove' : ev.ctx) : 'other' };
+                if (cards && ev) { const ci = cidx(cell(cards)), pct = P[ci]; r.ci = ci; r.pct = pct;
+                    // GTO : ta charte (référence théorique de l'app), jugée sur sa main
+                    const old = trCfg.ref; try { trCfg.ref = 'nash'; const s = trSpotOf({ ...h, id: h.id + '|vh|' + V, hole: [V, cards] }, V); if (s && s.bestLab) { const nz = x => /shove|tapis/.test(x) ? 'shove' : /raise|relance/.test(x) ? 'raise' : String(x).split(' ')[0], allIn = (h.preflop || []).some(l => l.startsWith(V + ' ') && /all-in/.test(l)), a = allIn ? 'shove' : nz(s.act), b = nz(s.bestLab), ctx = r.spot.split('|')[2];
+                            // équivalences : surrelancer à tapis un tapis qu'on couvre = payer ; une relance qui le met à tapis = tapis
+                            const eq = (ctx === 'shove' && a === 'shove' && b === 'call') || (a === 'shove' && b === 'raise' && r.eff <= 4) || (a === 'raise' && b === 'shove' && (allIn || r.eff <= 3));
+                            r.gto = { err: !!s.err && !eq, best: s.bestLab, act: s.act, lab: s.label, loss: s.loss || 0 }; } } catch (e) { } finally { trCfg.ref = old; }
+                    // field : ce que le field joue dans ce spot (en % des mains) comparé au rang de sa main
+                    const f = FT[r.spot]; if (f && f.n >= 20 && pct != null) { const ctx = r.spot.split('|')[2], A = ['raise', 'shove'], play = ctx === 'open' ? f.n - (f.fold || 0) : A.reduce((x, a) => x + (f[a] || 0), 0) + (ctx === 'limp' ? 0 : f.call || 0), fp = 100 * play / f.n, acts = ev.act, plays = ctx === 'open' ? acts !== 'fold' : acts !== 'fold' && acts !== 'check';
+                        r.fld = { fp, pct, v: plays && pct > fp + 5 ? 'large' : !plays && pct < fp - 5 ? 'serre' : 'ok', lab: ctx === 'limp' ? 'relance' : 'joue' }; } }
+                rows.push(r); });
+            rows.sort((a, b) => String(b.h.ts || b.h.date).localeCompare(String(a.h.ts || a.h.date))); vhC.set(k, rows); return rows; }
+        function vhDev(hero, V) { const PR = buildProfiles(), o = PR[V]; if (!o) return []; const FT = vhFieldT(hero), G = {};
+            for (const key in o.T || {}) { const [ctx, fmt, pos] = key.split('|'), c = ctx === 'aggShove' ? 'shove' : ctx, kk = fmt + '|' + pos + '|' + c, t = G[kk] || (G[kk] = { n: 0 }); for (const a in o.T[key]) t[a] = (t[a] || 0) + o.T[key][a]; }
+            const out = []; for (const k in G) { const t = G[k], f = FT[k]; if (!f || t.n < 4) continue; const [fmt, pos, ctx] = k.split('|'); ['shove', 'raise', 'call', 'fold'].forEach(a => { { const m = (t[a] || 0) / t.n, ff = (f[a] || 0) / f.n, d = m - ff; if (Math.abs(d) >= .12) out.push({ k, fmt, pos, ctx, a, m, ff, n: t.n, sc: Math.abs(d) * Math.sqrt(t.n) }); } }); }
+            return out.sort((a, b) => b.sc - a.sc).slice(0, 6); }
+        function vhHtml(hero) { const Pl = arxPlayers(hero); if (!VH.p || !Pl.some(x => x[0] === VH.p)) VH.p = (Pl[0] || [''])[0]; const V = VH.p; if (!V) return '<div class="pc text-slate-400">Pas encore d\'adversaires.</div>';
+            const R = vhRows(hero, V), sh = R.filter(r => r.cards), og = sh.filter(r => r.gto && r.gto.err), ofl = sh.filter(r => r.fld && r.fld.v !== 'ok'), pv = R.filter(r => r.line.some(x => x.st !== 'Préflop')), D = vhDev(hero, V);
+            const byErr = {}; og.forEach(r => { const k = vhSpotLab(...r.spot.split('|')); (byErr[k] = byErr[k] || []).push(r); });
+            const shAgg = sh.flatMap(r => r.line.filter(x => x.st !== 'Préflop' && x.agg && x.cat)), weak = shAgg.filter(x => /Tirage|Rien/.test(x.cat));
+            const spots = [...new Set(R.map(r => r.spot))].filter(s => s !== 'other').sort();
+            const F = { all: R, sh, gto: og, fld: ofl, post: pv }[VH.f] || R, L = F.filter(r => VH.spot === 'all' || r.spot === VH.spot);
+            const chip = (k, l, n) => `<button data-vhf="${k}" class="min-h-[44px] px-3 rounded-xl text-xs font-bold ${VH.f === k ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300'}">${l} <span class="opacity-70">${n}</span></button>`;
+            const badge = r => { const b = []; if (r.gto) b.push(r.gto.err ? `<span class="px-1.5 py-0.5 rounded bg-rose-700/80 text-white">✗ GTO : ${esc(String(r.gto.best).replace('shove', 'tapis').replace(/^raise (\d+(?:[.,]\d+)?)$/, 'relance à $1 BB'))}</span>` : '<span class="px-1.5 py-0.5 rounded bg-emerald-700/70 text-white">✓ GTO</span>');
+                if (r.fld) b.push(r.fld.v === 'large' ? `<span class="px-1.5 py-0.5 rounded bg-amber-600/80 text-white">+ large que le field (main top ${Math.round(r.fld.pct)} %, field ${Math.round(r.fld.fp)} %)</span>` : r.fld.v === 'serre' ? `<span class="px-1.5 py-0.5 rounded bg-sky-700/80 text-white">+ serré que le field (main top ${Math.round(r.fld.pct)} %, field ${Math.round(r.fld.fp)} %)</span>` : '<span class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-200">comme le field</span>'); return b.join(' '); };
+            const row = r => `<div class="rounded-xl bg-slate-900 border ${r.gto && r.gto.err ? 'border-rose-500/40' : 'border-white/10'} p-2.5 flex flex-wrap items-start gap-2"><div class="min-w-[86px]">${r.cards ? `<span class="arx-cards">${cardsH(r.cards)}</span>` : '<span class="text-slate-500 text-xs">cartes non vues</span>'}</div>
+                <div class="flex-1 min-w-[220px] text-xs"><div class="text-slate-400">${esc(String(r.h.ts || r.h.date).slice(0, 16))} · ${r.h.players.length === 2 ? 'HU' : '3-max'} ${esc(r.pos || '')} · ${hhxBB(r.eff, 1)} eff.${r.h.board ? ' · board ' + esc(r.h.board) : ''}</div>
+                    <div class="text-slate-200 mt-0.5">${r.line.map(x => `<b>${x.st}</b> : ${esc(x.t)}${x.cat ? ` <span class="${/Tirage|Rien/.test(x.cat) && x.agg ? 'text-amber-300' : 'text-slate-400'}">[${esc(x.cat)}]</span>` : ''}`).join(' · ') || '<span class="text-slate-500">aucune action (tout le monde s\'est couché avant lui)</span>'}</div>${r.gto || r.fld ? `<div class="flex flex-wrap gap-1 mt-1 text-[11px]">${badge(r)}</div>` : ''}</div>
+                <div class="text-right"><div class="text-sm font-bold ${r.net >= 0 ? 'text-emerald-300' : 'text-rose-300'}">${r.net >= 0 ? '+' : ''}${hhxBB(r.net, 1)}</div><button data-vhr="${esc(r.h.id)}" class="mt-1 min-h-[44px] px-3 rounded-lg bg-indigo-600 text-white text-xs font-bold">▶ Replayer</button></div></div>`;
+            return `<div class="pc"><div class="flex flex-wrap items-center gap-2 mb-3"><div class="h3t !mb-0 mr-2">🃏 Ses mains</div><select data-vhp class="sel min-h-[44px] text-sm">${Pl.slice(0, 300).map(([p, n]) => `<option value="${esc(p)}" ${p === V ? 'selected' : ''}>${esc(p)} (${n} mains)</option>`).join('')}${Pl.slice(0, 300).some(x => x[0] === V) ? '' : `<option selected>${esc(V)}</option>`}</select>
+                <input data-vhq list="vhPl" placeholder="ou début d'un pseudo…" class="sel min-h-[44px] text-sm w-48" autocomplete="off"><datalist id="vhPl">${Pl.slice(0, 2000).map(([p]) => `<option value="${esc(p)}">`).join('')}</datalist></div><div class="mb-3">${(() => { try { return stChipsHtml(V, 8); } catch (e) { return ''; } })()}<div class="mt-1">${typeof TG2_LEG !== 'undefined' ? TG2_LEG : ''}</div></div>
+                <div class="grid gap-3 lg:grid-cols-2 mb-3"><div class="rounded-xl bg-slate-950/60 border border-white/10 p-3 text-sm"><div class="font-bold mb-1">Ses mains montrées : ${sh.length} sur ${R.length}</div>
+                    ${sh.length ? `<div>Préflop : <b class="text-rose-300">${og.length} hors de ta charte (GTO)</b> sur ${sh.filter(r => r.gto).length} jugées · <b class="text-amber-300">${ofl.filter(r => r.fld.v === 'large').length} plus larges</b> et <b class="text-sky-300">${ofl.filter(r => r.fld.v === 'serre').length} plus serrées</b> que le field.</div>
+                    ${Object.keys(byErr).length ? `<div class="text-xs text-slate-300 mt-1">Écarts GTO : ${Object.entries(byErr).sort((a, b) => b[1].length - a[1].length).map(([k, v]) => `${esc(k)} (${v.length} : ${v.slice(0, 4).map(r => cname(r.ci)).join(', ')})`).join(' · ')}</div>` : ''}
+                    ${shAgg.length ? `<div class="text-xs text-slate-300 mt-1">Postflop : sur ${shAgg.length} mises/relances montrées, ${weak.length} avec un tirage ou rien.</div>` : ''}` : '<div class="text-xs text-slate-400">Aucune main montrée : seules ses fréquences sont jugeables.</div>'}
+                    <div class="text-[10.5px] text-slate-500 mt-1">Mains montrées = surtout des tapis payés et des abattages : échantillon biaisé vers ses mains fortes et ses bluffs ratés.</div></div>
+                    <div class="rounded-xl bg-slate-950/60 border border-white/10 p-3 text-sm"><div class="font-bold mb-1">Ses fréquences vs le field (toutes ses mains)</div>${D.length ? D.map(d => `<div class="text-xs"><span class="text-slate-300">${esc(vhSpotLab(d.fmt, d.pos, d.ctx))}</span> (${d.n}) : ${VH_ACT[d.a]} <b class="${d.m > d.ff ? 'text-amber-300' : 'text-sky-300'}">${Math.round(100 * d.m)} %</b> <span class="text-slate-500">· field ${Math.round(100 * d.ff)} %</span></div>`).join('') : '<div class="text-xs text-slate-400">Pas d\'écart net au field (ou trop peu de mains).</div>'}</div></div>
+                <div class="flex flex-wrap items-center gap-1.5 mb-3">${chip('all', 'Toutes', R.length)}${chip('sh', 'Montrées', sh.length)}${chip('gto', 'Hors GTO', og.length)}${chip('fld', 'Hors field', ofl.length)}${chip('post', 'Avec postflop', pv.length)}
+                    <select data-vhs class="sel min-h-[44px] text-xs ml-auto"><option value="all">Tous les spots</option>${spots.map(s => `<option value="${s}" ${VH.spot === s ? 'selected' : ''}>${esc(vhSpotLab(...s.split('|')))}</option>`).join('')}</select></div>
+                <div class="space-y-1.5">${L.slice(0, VH.n).map(row).join('') || '<div class="text-sm text-slate-400">Aucune main pour ce filtre.</div>'}</div>${L.length > VH.n ? `<button data-vhm class="mt-2 min-h-[44px] px-4 rounded-xl bg-slate-800 text-sm font-bold">Voir plus (${L.length - VH.n})</button>` : ''}
+                <div class="text-[10.5px] text-slate-500 mt-2">GTO = ta charte préflop à sa profondeur, appliquée à sa main. Field = la part des mains que le field joue dans ce spot, comparée au rang de sa main (top X %). Le Replayer permet l'export NotebookLM.</div></div>`; }
+        function vhPaint() { const el = document.getElementById('vhBox'); if (!el) return; try { el.innerHTML = vhHtml(playerSelect.value); } catch (e) { console.error('vh', e); el.innerHTML = `<div class="pc text-rose-300 text-sm">${esc(e.message)}</div>`; } }
+        document.addEventListener('click', e => { const t = e.target; if (!t.closest || !t.closest('#vhBox')) return; const f = t.closest('[data-vhf]'); if (f) { VH.f = f.dataset.vhf; VH.n = 60; vhPaint(); return; }
+            if (t.closest('[data-vhm]')) { VH.n += 60; vhPaint(); return; } const r = t.closest('[data-vhr]'); if (r) { const h = allParsedHands.find(x => x.id === r.dataset.vhr); if (h) startReplay(h); } });
+        document.addEventListener('change', e => { const t = e.target; if (!t.closest || !t.closest('#vhBox')) return; if (t.hasAttribute('data-vhp')) { VH.p = t.value; VH.spot = 'all'; VH.n = 60; setTimeout(vhPaint, 0); }
+            else if (t.hasAttribute('data-vhs')) { VH.spot = t.value; VH.n = 60; setTimeout(vhPaint, 0); }
+            else if (t.hasAttribute('data-vhq')) { const v = t.value.trim().toLowerCase(); if (!v) return; const Pl = arxPlayers(playerSelect.value).map(x => x[0]), m = Pl.find(p => p.toLowerCase() === v) || Pl.find(p => p.toLowerCase().startsWith(v)) || Pl.find(p => p.toLowerCase().includes(v)); if (m) { VH.p = m; VH.spot = 'all'; VH.n = 60; setTimeout(vhPaint, 0); } } });
+        document.addEventListener('keydown', e => { const q = e.target.closest && e.target.closest('#vhBox [data-vhq]'); if (q && e.key === 'Enter') q.dispatchEvent(new Event('change', { bubbles: true })); });
+        // nouvel onglet dans le groupe Adversaires
+        { const pl = document.getElementById('tab-plan'); if (pl && !document.getElementById('tab-vh')) pl.insertAdjacentHTML('afterend', '<section id="tab-vh" class="hidden space-y-6"><div id="vhBox"></div></section>');
+            const sb = document.getElementById('subBar'); if (sb && !document.querySelector('.tab-btn[data-tab="vh"]')) { const b = document.createElement('button'); b.dataset.tab = 'vh'; b.className = 'tab-btn px-4 py-2 rounded-xl text-[13px] font-semibold transition bg-slate-800 text-slate-300'; b.textContent = '🃏 Ses mains'; b.addEventListener('click', () => showTab('vh')); const ref = document.querySelector('.tab-btn[data-tab="plan"]'); if (ref) ref.insertAdjacentElement('afterend', b); else sb.appendChild(b); }
+            const g = NAV.find(x => x.id === 'opp'); if (g && !g.tabs.includes('vh')) g.tabs.splice(Math.max(0, g.tabs.indexOf('plan')) + 1, 0, 'vh'); NAV_TAB.vh = ['🃏 Ses mains', 'Toutes les mains d\'un adversaire contre toi, ses cartes montrées jugées par rapport à ta charte (GTO) et au field'];
+            const _st = showTab; showTab = function (t) { _st(t); const s = document.getElementById('tab-vh'); if (s) s.classList.toggle('hidden', t !== 'vh');
+                if (t === 'vh') { document.querySelectorAll('.tab-btn').forEach(b => { const on = b.dataset.tab === 'vh'; b.classList.toggle('bg-indigo-600', on); b.classList.toggle('text-white', on); b.classList.toggle('bg-slate-800', !on); b.classList.toggle('text-slate-300', !on); }); try { navSync('vh'); } catch (e) { } vhPaint(); } };
+            try { navSync(); } catch (e) { } }
+        { const _ta = triggerAnalysis; triggerAnalysis = function () { const r = _ta.apply(this, arguments); try { vhC.clear(); if (curTab() === 'vh') vhPaint(); } catch (e) { } return r; }; }
+
+        // ===================== 113. TAGS SPINS (préflop + postflop, significatifs, comparés au field spot par spot) + FILTRE DE JEU =====================
+        // --- filtre de jeu (Nitro / Expresso classique / tous les Expresso / tout) : SPF et spinOk() sont déclarés tôt (build) ---
+        { const dm = document.getElementById('depMode'); const box = dm && dm.closest('.flex-1'); if (box && !document.getElementById('spfSel')) { const d = document.createElement('div'); d.className = 'flex-1 min-w-[200px]';
+                d.innerHTML = `<label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Jeu analysé</label><select id="spfSel" class="sel text-xs min-h-[36px]"><option value="exp">Tous les Expresso</option><option value="nitro">Expresso Nitro</option><option value="classic">Expresso classique</option><option value="all">Tout (y compris MTT)</option></select><div class="text-[10px] text-slate-500 mt-1">Stats, field, tags et analyses calculés sur ce jeu seulement.</div>`;
+                box.insertAdjacentElement('beforebegin', d); const s = document.getElementById('spfSel'); s.value = SPF;
+                s.addEventListener('change', () => { SPF = s.value; try { localStorage.setItem('spf', SPF); } catch (e) { } _tg2C.clear(); try { depApply(true); } catch (e) { profCache = null; _dH = null; if (playerSelect.value) triggerAnalysis(); } }); } }
+        // --- comparaison spot par spot : écart réel vs ce que le field ferait dans les mêmes spots ---
+        const _tg2C = new Map();
+        function tgFieldT() { const k = 'F'; const c = _tg2C.get(k); if (c && c.pc === profCache) return c.v; const PR = buildProfiles(), hero = playerSelect.value, F = {};
+            Object.keys(PR).forEach(p => { if (p === hero) return; const T = PR[p].T || {}; for (const key in T) { const t = F[key] || (F[key] = { n: 0 }); for (const a in T[key]) t[a] = (t[a] || 0) + T[key][a]; } });
+            _tg2C.set(k, { pc: profCache, v: F }); return F; }
+        function tgZpre(o, ctxs, acts) { const FT = tgFieldT(); let n = 0, k = 0, E = 0, V = 0;
+            for (const key in o.T || {}) { const ctx = key.split('|')[0]; if (!ctxs.includes(ctx)) continue; const t = o.T[key], f = FT[key]; if (!f || f.n < 15) continue; const pf = Math.min(.98, Math.max(.02, acts.reduce((x, a) => x + (f[a] || 0), 0) / f.n));
+                n += t.n; k += acts.reduce((x, a) => x + (t[a] || 0), 0); E += t.n * pf; V += t.n * pf * (1 - pf); }
+            return { n, k, E, V }; }
+        function tgZpost(p, cells) { const ix = (typeof _mpIx !== 'undefined') && _mpIx; if (!ix) return null; const Q = ix.P[p] || {}; let n = 0, k = 0, E = 0, V = 0;
+            cells.forEach(([role, m]) => { const keys = role === 'T' || role === 'R' ? [role + '|W'] : ['HU', '3M2', '3M3'].flatMap(f => [0, 1].map(ip => mpKey(f, role, ip, '*')));
+                keys.forEach(key => { const a = mpCell(Q, key, m); if (!a[0]) return; const f = mpCell(ix.F, key, m); if (f[0] < 15) return; const pf = Math.min(.98, Math.max(.02, f[1] / f[0])); n += a[0]; k += a[1]; E += a[0] * pf; V += a[0] * pf * (1 - pf); }); });
+            return { n, k, E, V }; }
+        // side : pre/post · dir : agg/pas · sg : +1 = il le fait plus que le field, -1 = moins · min : écart minimal (en part des occasions)
+        const TG2 = [
+            { l: 'Shoveur', side: 'pre', dir: 'agg', sg: 1, min: .08, d: 'ouvre à tapis plus souvent que le field', f: o => tgZpre(o, ['open'], ['shove']) },
+            { l: 'Min-raiseur', side: 'pre', dir: 'agg', sg: 1, min: .06, d: 'ouvre en min-raise plus que le field', f: o => tgZpre(o, ['open'], ['raise']) },
+            { l: 'Limpeur', side: 'pre', dir: 'pas', sg: 1, min: .08, d: 'ouvre en limp plus que le field', f: o => tgZpre(o, ['open'], ['call']) },
+            { l: 'Serré d\'entrée', side: 'pre', dir: 'pas', sg: 1, min: .1, d: 'folde d\'entrée plus que le field', f: o => tgZpre(o, ['open'], ['fold']) },
+            { l: 'Iso agressif', side: 'pre', dir: 'agg', sg: 1, min: .08, d: 'relance ou shove sur un limp plus que le field', f: o => tgZpre(o, ['limp'], ['raise', 'shove']) },
+            { l: 'Re-shove le min-raise', side: 'pre', dir: 'agg', sg: 1, min: .06, d: 'shove sur un min-raise plus que le field', f: o => tgZpre(o, ['min'], ['shove']) },
+            { l: 'Lâche le min-raise', side: 'pre', dir: 'pas', sg: 1, min: .1, d: 'folde au min-raise plus que le field', f: o => tgZpre(o, ['min'], ['fold']) },
+            { l: 'Station (tapis)', side: 'pre', dir: 'pas', sg: 1, min: .08, d: 'paie les tapis plus large que le field', f: o => tgZpre(o, ['shove', 'aggShove'], ['call', 'shove']) },
+            { l: 'Nit aux tapis', side: 'pre', dir: 'pas', sg: -1, min: .1, d: 'paie les tapis moins que le field', f: o => tgZpre(o, ['shove', 'aggShove'], ['call', 'shove']) },
+            { l: 'C-bet auto', side: 'post', dir: 'agg', sg: 1, min: .1, d: 'c-bet plus que le field', f: (o, p) => tgZpost(p, [['A', 'cb']]) },
+            { l: 'Abandonne au flop', side: 'post', dir: 'pas', sg: -1, min: .12, d: 'c-bet moins que le field', f: (o, p) => tgZpost(p, [['A', 'cb']]) },
+            { l: 'Folde au c-bet', side: 'post', dir: 'pas', sg: 1, min: .1, d: 'folde au c-bet plus que le field', f: (o, p) => tgZpost(p, [['C', 'fcb']]) },
+            { l: 'Collant au flop', side: 'post', dir: 'pas', sg: -1, min: .12, d: 'folde au c-bet moins que le field', f: (o, p) => tgZpost(p, [['C', 'fcb']]) },
+            { l: 'Check-raiseur', side: 'post', dir: 'agg', sg: 1, min: .05, d: 'check-raise plus que le field', f: (o, p) => tgZpost(p, [['C', 'xr'], ['L', 'xr']]) },
+            { l: 'Attaque pots limpés', side: 'post', dir: 'agg', sg: 1, min: .1, d: 'mise plus que le field quand personne n\'a misé en pot limpé', f: (o, p) => tgZpost(p, [['L', 'lb']]) },
+            { l: 'Passif pots limpés', side: 'post', dir: 'pas', sg: -1, min: .12, d: 'mise moins que le field en pot limpé', f: (o, p) => tgZpost(p, [['L', 'lb']]) },
+            { l: 'Folde aux mises', side: 'post', dir: 'pas', sg: 1, min: .1, d: 'folde face à une mise en pot limpé plus que le field', f: (o, p) => tgZpost(p, [['L', 'lf']]) },
+            { l: 'Agressif turn/river', side: 'post', dir: 'agg', sg: 1, min: .1, d: 'mise turn et river plus que le field', f: (o, p) => tgZpost(p, [['T', 'b'], ['R', 'b']]) },
+            { l: 'Passif turn/river', side: 'post', dir: 'pas', sg: -1, min: .12, d: 'mise turn et river moins que le field', f: (o, p) => tgZpost(p, [['T', 'b'], ['R', 'b']]) },
+            { l: 'Va à l\'abattage', side: 'post', dir: 'pas', sg: 1, min: .08, d: 'va à l\'abattage plus que le field', f: o => { const sd = o.sd; if (!sd || !sd.saw) return null; const F = tgSdF(), pf = F.saw ? F.went / F.saw : .3; return { n: sd.saw, k: sd.went, E: sd.saw * pf, V: sd.saw * pf * (1 - pf) }; } }];
+        function tgSdF() { const c = _tg2C.get('SD'); if (c && c.pc === profCache) return c.v; const PR = buildProfiles(), hero = playerSelect.value, F = { saw: 0, went: 0 }; Object.keys(PR).forEach(p => { if (p !== hero && PR[p].sd) { F.saw += PR[p].sd.saw; F.went += PR[p].sd.went; } }); _tg2C.set('SD', { pc: profCache, v: F }); return F; }
+        // ses tags spins, triés par netteté (le préflop compte plus)
+        function sTags(p) { const PR = buildProfiles(), o = PR[p]; if (!o || p === playerSelect.value) return []; const ck = 'S|' + p, c = _tg2C.get(ck), ixOn = !!((typeof _mpIx !== 'undefined') && _mpIx); if (c && c.pc === profCache && c.ix === ixOn) return c.v;
+            const out = []; TG2.forEach(T => { let r = null; try { r = T.f(o, p); } catch (e) { } if (!r || r.n < 6 || !(r.V > 0)) return; const z = T.sg * (r.k - r.E) / Math.sqrt(r.V), eff = T.sg * (r.k - r.E) / r.n; if (z < 1.64 || eff < T.min) return;
+                out.push({ l: T.l, side: T.side, dir: T.dir, lvl: z >= 2.33 ? 2 : 1, z, eff, n: r.n, me: r.k / r.n, fd: r.E / r.n, d: T.d, sc: z * (T.side === 'pre' ? 1.3 : 1) }); });
+            // deux tags opposés ne peuvent pas coexister (sécurité)
+            out.sort((a, b) => b.sc - a.sc); _tg2C.set(ck, { pc: profCache, ix: ixOn, v: out }); return out; }
+        // VPIP / PFR / limp ajustés au mélange de spots du joueur (pour Fish/Reg et tes tags perso)
+        function tgAdjS(o, s, avg) { try { if (!o.T) return s; const r = { ...s }, sh = (z, base) => { if (!z || !z.n) return base; const rel = z.n / (z.n + 8); return Math.max(0, Math.min(100, base + 100 * (z.k - z.E) / z.n * rel)); };
+                r.vpip = sh(tgZpre(o, ['open', 'limp', 'min', 'big', 'shove', 'aggShove'], ['call', 'raise', 'shove']), avg.vpip); r.pfr = sh(tgZpre(o, ['open', 'limp', 'min', 'big', 'shove', 'aggShove'], ['raise', 'shove']), avg.pfr); r.limp = sh(tgZpre(o, ['open'], ['call']), avg.limp); return r; } catch (e) { return s; } }
+        { const _bp = buildProfiles; buildProfiles = function () { const r = _bp.apply(this, arguments); if (r && !r.__nm) { for (const p in r) r[p]._p = p; try { Object.defineProperty(r, '__nm', { value: true }); } catch (e) { } } return r; }; }
+        { const _to = tagsOf; tagsOf = function (o, avg) { const t = _to.apply(this, arguments); if (!o || t[0] === '?' || !o._p) return t; try {
+                    const S = sTags(o._p), has = l => S.some(x => x.l === l), zv = tgZpre(o, ['open', 'limp', 'min', 'big', 'shove', 'aggShove'], ['call', 'raise', 'shove']), ve = zv.n ? (zv.k - zv.E) / zv.n : 0, vz = zv.V > 0 ? (zv.k - zv.E) / Math.sqrt(zv.V) : 0;
+                    t[0] = (has('Limpeur') && has('Station (tapis)')) || (ve >= .08 && vz >= 1.64 && !has('Min-raiseur') && !has('Shoveur')) || ve >= .14 && vz >= 2.33 ? 'Fish' : 'Reg';
+                    let r = t.filter(x => !((x === 'Agressif' || x === 'Passif') && (o.agg + o.call) < 12)); S.forEach(x => { if (!r.includes(x.l)) r.push(x.l); }); return r; } catch (e) { return t; } }; }
+        // --- affichage : pastilles couleur (préflop : orange = agressif, bleu = passif · postflop : rose = agressif, vert = passif ; plein = confirmé, contour = probable) ---
+        const TG2_C = { 'pre|agg': ['bg-orange-500 text-white', 'border border-orange-400 text-orange-300'], 'pre|pas': ['bg-sky-600 text-white', 'border border-sky-400 text-sky-300'], 'post|agg': ['bg-fuchsia-600 text-white', 'border border-fuchsia-400 text-fuchsia-300'], 'post|pas': ['bg-emerald-600 text-white', 'border border-emerald-400 text-emerald-300'] };
+        function stChipsHtml(p, max = 3, small) { const PR = buildProfiles(), o = PR[p]; if (!o) return ''; const sz = small ? 'text-[10px] px-1.5 py-0.5' : 'text-[11px] px-2 py-0.5';
+            if (o.n < 10) return `<span class="${sz} rounded-md bg-slate-700 text-slate-300">? ${o.n} mains</span>`; const av = fAvg(playerSelect.value), all = tagsOf(o, av), S = sTags(p);
+            const pre = S.filter(x => x.side === 'pre'), post = S.filter(x => x.side === 'post'), pick = [...pre.slice(0, Math.max(2, max - Math.min(1, post.length))), ...post].slice(0, max).sort((a, b) => (a.side === b.side ? b.sc - a.sc : a.side === 'pre' ? -1 : 1));
+            const chip = x => `<span title="${esc(`${x.side === 'pre' ? 'Préflop' : 'Postflop'} · ${x.d} : ${Math.round(100 * x.me)} % contre ${Math.round(100 * x.fd)} % pour le field dans les mêmes spots (${x.n} occasions) · ${x.lvl === 2 ? 'confirmé' : 'probable'}`)}" class="${sz} rounded-md font-bold whitespace-nowrap ${TG2_C[x.side + '|' + x.dir][x.lvl === 2 ? 0 : 1]}">${esc(x.l)}</span>`;
+            const sys = new Set([...TG2.map(T => T.l), 'Fish', 'Reg', 'Passif', 'Agressif', '?']), cus = all.filter(t => !sys.has(t)).slice(0, small ? 1 : 2);
+            return `<span class="inline-flex flex-wrap gap-1 align-middle"><span class="${sz} rounded-md ${all[0] === 'Fish' ? 'bg-amber-500/25 text-amber-200' : 'bg-slate-700 text-slate-200'}">${esc(all[0])}</span>${pick.map(chip).join('')}${cus.map(t => `<span class="${sz} rounded-md border border-slate-500 text-slate-300 whitespace-nowrap">🏷 ${esc(t)}</span>`).join('')}${S.length > pick.length ? `<span class="${sz} text-slate-500">+${S.length - pick.length}</span>` : ''}</span>`; }
+        const TG2_LEG = `<div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400"><span><span class="inline-block w-2.5 h-2.5 rounded-sm bg-orange-500 align-middle"></span> préflop agressif</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm bg-sky-600 align-middle"></span> préflop passif</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm bg-fuchsia-600 align-middle"></span> postflop agressif</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-600 align-middle"></span> postflop passif</span><span>plein = confirmé · contour = probable</span></div>`;
+        // l'index postflop se calcule en arrière-plan : on rafraîchit les tags quand il est prêt
+        { const _ta = triggerAnalysis; triggerAnalysis = function () { const r = _ta.apply(this, arguments); try { _tg2C.clear(); const hero = playerSelect.value; if (hero && !mpIndex(hero)) mpIndex(hero, () => { _tg2C.clear(); try { if (curTab() === 'mtab') renderMt(); if (curTab() === 'vh') vhPaint(); } catch (e) { } }); } catch (e) { } return r; }; }
+        function stTagChip(l) { const T = TG2.find(x => x.l === l); return `<span class="text-[10px] px-1.5 py-0.5 rounded-md font-bold ${T ? TG2_C[T.side + '|' + T.dir][0] : l === 'Fish' ? 'bg-amber-500/25 text-amber-200' : 'bg-slate-700 text-slate-200'}">${esc(l)}</span>`; }
+        { const _rm = renderMt; renderMt = function () { const r = _rm.apply(this, arguments); try { const b = document.getElementById('mtBox'); if (b && !b.querySelector('#tg2Leg')) { const d = document.createElement('div'); d.id = 'tg2Leg'; d.className = 'mt-2 px-1'; d.innerHTML = TG2_LEG; b.appendChild(d); } } catch (e) { } return r; }; }
 
 </script>
 </body>
